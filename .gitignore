@@ -1,0 +1,9 @@
+/data
+*/csv
+
+/Pycache__/
+
+.env
+
+/temp
+*.svg
