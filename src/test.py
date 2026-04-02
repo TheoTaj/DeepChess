@@ -8,7 +8,7 @@ import webbrowser
 load_dotenv()
 hf_token = os.getenv("HUGGING_FACE_HUB_TOKEN")
 
-dataset = load_dataset("Lichess/chess-position-evaluations", split="train", streaming=True, token=hf_token) # streaming=True to avoid loading the whole dataset in memory
+dataset = load_dataset("mateuszgrzyb/lichess-stockfish-normalized", split="train", streaming=True, token=hf_token) # streaming=True to avoid loading the whole dataset in memory
 
 testRow = dataset.take(1) # take the first n elements of the dataset
 for e in testRow:
