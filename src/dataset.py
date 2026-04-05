@@ -42,10 +42,11 @@ def fen_to_tensor(fen):
     return tensor
 
 class ChessDataset(Dataset):
-    def __init__(self, parquet_path):
+    def __init__(self, parquet_path, K=300.0):
         print(f"Loading dataset from {parquet_path}...")
         self.df = pd.read_parquet(parquet_path)
         print(f"Dataset loaded with {len(self.df)} positions.")
+        self.K = K
 
     def __len__(self):
         return len(self.df)
@@ -69,7 +70,7 @@ class ChessDataset(Dataset):
         if pd.notna(mate):
             y = 1.0 if mate > 0 else -1.0
         else:
-            y = np.tanh(cp / 300.0)
+            y = np.tanh(cp / self.K)
             
         return torch.from_numpy(x).float(), torch.tensor(y, dtype=torch.float32)
 

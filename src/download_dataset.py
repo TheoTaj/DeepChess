@@ -39,6 +39,6 @@ def download_dataset(df_name="mateuszgrzyb/lichess-stockfish-normalized", output
     df.to_parquet(full_path, compression='snappy', index=False)
 
 if __name__ == "__main__":
-    nrows = 100_000 # then change it for 5_000_000
+    nrows = 5_000_000 # then change it for 5_000_000
     filename = f"dataset_{nrows}"
     download_dataset(filename=filename,nrows=nrows)

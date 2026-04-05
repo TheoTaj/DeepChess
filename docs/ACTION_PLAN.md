@@ -11,6 +11,10 @@
 => On peut garder notre [-1; 1] et notre représentation de la position. Mais pour le modèle, est-ce qu'on garde CNN vs ViT ou on ajoute le MLP ?
 Ca serait bien de comparer uniquement deux architectures parce qu'on aura trop de travail sinon. Perso MLP vs CNN me parait bien parce qu'apparament (gemini) un ViT est encore plus lent à entrainer.
 
+<span style="color:orange">-> Dans le feedback du project proposal, il dit qu'on devrait focus sur le ViT d'abord pour avoir un projet plus intéressant. Effectivement un ViT requiert plus de données, mais je pense que si on ne fait pas du tout de ViT, le projet est vraiment trop simple. Après est-ce qu'on compare ViT et CNN ou ViT et MLP c'est à voir.</span>
+
+<span style="color:orange">-> N'oublie pas que le projet est vrmt un truc from scratch. Il faut essayer de se baser au minimum sur des implémentations existantes. On peut utiliser des idées etc, mais l'architecture, le choix des paramètres etc doit rester propre à notre projet.</span>
+
 ## 2. Hyperparemeter tuning
 
 Pour le tuning des hyperparamètres, on peut se baser sur les meilleurs hyperparamètres du papier et faire une grille de recherche autour de ces hyperparamètres. 
