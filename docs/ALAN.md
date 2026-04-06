@@ -60,10 +60,9 @@ you@master:~ $ conda create -n deepchess python=3.12 -c conda-forge
 you@master:~ $ conda activate deepchess
 ```
 
-Et tu peux installer les librairies classiques:
+Et tu peux installer les librairies comme d'habitude:
 ```bash
-(deepchess) you@master:~ $ conda install pytorch torchvision -c pytorch -c nvidia
-(deepchess) you@master:~ $ conda install tensorflow-gpu -c conda-forge
+(deepchess) you@master:~ $ conda install ...
 ```
 
 # 4. Mettre le dataset sur ALAN
