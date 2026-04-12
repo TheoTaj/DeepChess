@@ -32,7 +32,8 @@ class TransformerBlock(nn.Module):
         self.attention = nn.MultiheadAttention(
             embed_dim=embed_dim,
             num_heads=n_heads,
-            dropout=dropout
+            dropout=dropout,
+            batch_first=True
         )
         self.norm1 = nn.LayerNorm(embed_dim)
         self.mlp = nn.Sequential(
@@ -96,15 +97,11 @@ class ChessViT(nn.Module):
         x = self.norm(x[:, 0]) 
   
         return torch.tanh(self.head(x))
-    
+
 if __name__=="__main__":
     print(torch.__version__)
-    print(torch.cuda.is_available())
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'Using device: {device}')
 
-    data = dataset.ChessDataset("../../datasets/deepchess/dataset_100000.parquet")
-    loader = DataLoader(data, batch_size=64, shuffle=True, num_workers=2)
-
     model = ChessViT().to(device)
-    print(f'Parameters: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M')
+    print(f'ChessViT Parameters: {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M')

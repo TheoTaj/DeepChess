@@ -67,24 +67,19 @@ Et tu peux installer les librairies comme d'habitude:
 
 # 4. Mettre le dataset sur ALAN
 
-Crée un dossier pour centraliser tous tes datasets futurs sur ALAN, et dedans un dossier spécial pour le projet:
+Crée un dossier spécial pour le projet et dedans un dossier `data` où on y mettra les datasets:
 ```bash
-mkdir -p datasets/deepchess
-cd datasets/deepchess
+mkdir -p projects/deepchess/data
+cd projects/deepchess
 ```
 
 Ensuite, en local, run
 ```bash
-scp -r data/dataset_100000.parquet you@master.alan.priv:datasets/deepchess
+scp -r data/dataset_100000.parquet you@master.alan.priv:projects/deepchess/data
 ```
 et répète pour l'autre dataset.
 
 # 5. Run un script
-
-Crée un dossier pour tes projets et un dossier pour ce projet-ci:
-```bash
-mkdir -p projects/deepchess
-```
 
 Edit le fichier `dc.sbatch` avec tes infos, puis copies les fichiers `test.py` et `dc.sbatch` depuis ton pc sur alan en faisant en local:
 ```bash
@@ -102,3 +97,21 @@ cat dc-output.log       # check l'output
 ```
 
 Du coup après pour moi ce qu'on peut faire, c'est donc créer/modifier nos scripts en local, puis dès qu'on veut test et qu'on a besoin de GPU suffit de faire un fichier `.sbatch` adapté, et de copier le script et fichier `.sbatch` sur ALAN.
+
+Aussi j'ai créé un dossier models dans lequel on peut stocker les modèles entrainés. Voilà à quoi la structure ressemble chez moi:
+```bash
+(deepchess) [adelandsheere@master deepchess]$ tree
+.
+├── data
+│   ├── dataset_100000.parquet
+│   └── dataset_5000000.parquet
+├── dataset.py
+├── dc-output.log
+├── dc.sbatch
+├── models
+│   └── model_20260412_095447.pth
+├── __pycache__
+│   └── dataset.cpython-312.pyc
+├── test.py
+└── ViT.py
+```

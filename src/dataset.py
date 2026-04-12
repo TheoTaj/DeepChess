@@ -42,10 +42,24 @@ def fen_to_tensor(fen):
     return tensor
 
 class ChessDataset(Dataset):
-    def __init__(self, parquet_path, K=300.0):
+    def __init__(self, parquet_path, K=300.0, 
+                 train=True, # specify train or test split 
+                 train_ratio=0.9, # 90% training samples, 10% testing samples
+                 seed=42): # ensures the shuffle is always the same
+        
         print(f"Loading dataset from {parquet_path}...")
-        self.df = pd.read_parquet(parquet_path)
-        print(f"Dataset loaded with {len(self.df)} positions.")
+        df = pd.read_parquet(parquet_path)
+
+        df = df.sample(frac=1, random_state=seed).reset_index(drop=True) # shuffle the dataset
+        split_idx = int(len(df) * train_ratio) # define where to split the data 
+        
+        if train:
+            self.df = df.iloc[:split_idx]
+            print(f"Training Dataset loaded with {len(self.df)} positions.")
+        else:
+            self.df = df.iloc[split_idx:]
+            print(f"Testing Dataset loaded with {len(self.df)} positions.")
+
         self.K = K
 
     def __len__(self):
