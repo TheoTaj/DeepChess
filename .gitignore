@@ -1,10 +1,14 @@
 /data
+/models
+/wandb
+/outputs
 /.vscode/
 */csv
 
 /Pycache__/
 
 .env
+dc.sbatch
 
 /temp
 *.svg
