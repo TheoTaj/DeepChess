@@ -12,3 +12,6 @@ dc.sbatch
 
 /temp
 *.svg
+
+log/
+*.log
