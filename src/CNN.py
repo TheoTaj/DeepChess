@@ -73,13 +73,10 @@ class ChessCNN(nn.Module):
 if __name__ == "__main__":
 
     model = ChessCNN()
-    
-    # 2. On crée une fausse image de test (un tenseur de zéros)
-    # Taille : [1 batch, 18 canaux, 8 lignes, 8 colonnes]
+
     dummy_input = torch.zeros((1, 18, 8, 8))
     
     try:
-        # 3. On essaie de faire une prédiction
         output = model(dummy_input)
         print("✅ Succès ! Le flux de données traverse tout le réseau.")
         print(f"Forme de la sortie : {output.shape}") # Devrait être [1, 1]

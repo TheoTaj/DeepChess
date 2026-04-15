@@ -4,10 +4,23 @@ from torch.utils.data import DataLoader
 from datetime import datetime
 import wandb
 import argparse
+import numpy as np
+import random
 
-import dataset
+from dataset import ChessDataset, fen_to_tensor
 from CNN import ChessCNN
 from AsymmetricMSE import AsymmetricMSE
+
+
+# d'après gemeni il faut faire tout ca pour que tout soit reproducible.
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 def train_CNN(model, train_loader, test_loader, device, model_path, n_epochs=10, lr=0.01, alpha=1.0):
     
@@ -24,6 +37,7 @@ def train_CNN(model, train_loader, test_loader, device, model_path, n_epochs=10,
     model_config = model.get_config()
 
     train_config = {
+        "architecture": "CNN",
         "lr": lr,
         "n_epochs": n_epochs,
         "batch_size": train_loader.batch_size,
@@ -33,7 +47,7 @@ def train_CNN(model, train_loader, test_loader, device, model_path, n_epochs=10,
     
     run = wandb.init(
         entity="DeepChess",
-        name=f"CNN_{datetime.now().strftime('%d_%H-%M-%S')}",
+        name=f"CNN_100K_10epochs_2",
         project="DeepChess",
         config={**model_config, **train_config}
     )
@@ -95,20 +109,20 @@ def train_CNN(model, train_loader, test_loader, device, model_path, n_epochs=10,
     run.finish()
 
 
-if __name__=="main":
+if __name__== "__main__":
     
     config = {
         "epochs": 10,
         "lr": 0.01,
         "alpha": 1,
         "batch_size": 128,
-        "parquet_path": "data/dataset_100k.parquet",
+        "parquet_path": "data/dataset_100000.parquet",
         "conv_filters": [20, 50],
         "conv_kernels": [5, 3],
         "fc_layers": [500],
         "dropout": 0.3,
         "activation": nn.ELU,
-        "model_name": ".pth"
+        "model_name": "CNN_100k.pth"
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

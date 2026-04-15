@@ -14,7 +14,7 @@
 cd $SLURM_SUBMIT_DIR
 # Activate your Anaconda environment
 source $(conda info --base)/etc/profile.d/conda.sh
-conda activate /home/theotaj/anaconda3/envs/deepchess # CHANGE HERE
+conda activate /home/theotaj/anaconda3/envs/deepchess
 
 # Run your Python script
 python src/train_CNN.py
