@@ -13,19 +13,18 @@ class ChessCNN(nn.Module):
                  dropout=0.3,
                  activation_layer=nn.ELU
                 ):
+        """
+        Instance of the ChessCNN model. Input tensor X of size C*H*W.
+        Kernel w_k size C*h*w
 
-                """
-                    Instance of the ChessCNN model. Input tensor X of size C*H*W.
-                    Kernel w_k size C*h*w
-
-                    Args:
-                        in_channels (int): Number of input channels C
-                        conv_filters (list of int): Number of kernels for each conv layers
-                        conv_kernels (list of int): Size of the kernels for each conv layers (h=w)
-                        fc_dim (list of int): Number of neurons for each fully connected layer
-                        dropout (float): Dropout rate for the fully connected layers
-                        activation_layer (nn.Module): Activation function to use after each conv layer
-                """
+        Args:
+            in_channels (int): Number of input channels C
+            conv_filters (list of int): Number of kernels for each conv layers
+            conv_kernels (list of int): Size of the kernels for each conv layers (h=w)
+            fc_dim (list of int): Number of neurons for each fully connected layer
+            dropout (float): Dropout rate for the fully connected layers
+            activation_layer (nn.Module): Activation function to use after each conv layer
+        """
         super().__init__()
 
         self.hyperparams = {
@@ -40,7 +39,7 @@ class ChessCNN(nn.Module):
         layers = []
         current_channels = in_channels
         for out_channels, kernel_size in zip(conv_filters, conv_kernels):
-            layers.append(nn.Conv2d(currents_channels, out_channels, 
+            layers.append(nn.Conv2d(current_channels, out_channels, 
                             kernel_size=kernel_size, padding=kernel_size//2)) # padding = same, we don't tune this "hyperparameter".
             layers.append(nn.BatchNorm2d(out_channels))
             layers.append(activation_layer())
@@ -70,4 +69,19 @@ class ChessCNN(nn.Module):
 
     def get_config(self):
         return self.hyperparams
+
+if __name__ == "__main__":
+
+    model = ChessCNN()
     
+    # 2. On crée une fausse image de test (un tenseur de zéros)
+    # Taille : [1 batch, 18 canaux, 8 lignes, 8 colonnes]
+    dummy_input = torch.zeros((1, 18, 8, 8))
+    
+    try:
+        # 3. On essaie de faire une prédiction
+        output = model(dummy_input)
+        print("✅ Succès ! Le flux de données traverse tout le réseau.")
+        print(f"Forme de la sortie : {output.shape}") # Devrait être [1, 1]
+    except Exception as e:
+        print(f"❌ Erreur pendant le forward pass : {e}")
