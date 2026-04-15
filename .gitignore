@@ -7,6 +7,7 @@
 */csv
 
 /Pycache__/
+src/__pycache__/
 
 .env
 dc.sbatch

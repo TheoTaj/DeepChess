@@ -26,25 +26,25 @@ class ChessCNN(nn.Module):
                         dropout (float): Dropout rate for the fully connected layers
                         activation_layer (nn.Module): Activation function to use after each conv layer
                 """
-        supper().__init__()
+        super().__init__()
 
         self.hyperparams = {
             "conv_filters": conv_filters,
             "conv_kernels": conv_kernels,
-            "fc_layers": fc_fim,
-            "dropout_p": dropout_p,
+            "fc_layers": fc_dim,
+            "dropout_p": dropout,
             "activation": activation_layer.__name__ # On garde juste le nom de la fonction
         }
 
         # 1. Convolutioal part
         layers = []
-        currents_channels = in_channels
+        current_channels = in_channels
         for out_channels, kernel_size in zip(conv_filters, conv_kernels):
             layers.append(nn.Conv2d(currents_channels, out_channels, 
                             kernel_size=kernel_size, padding=kernel_size//2)) # padding = same, we don't tune this "hyperparameter".
             layers.append(nn.BatchNorm2d(out_channels))
             layers.append(activation_layer())
-            layers.append(nn.Dropout2d(p=dropout_p)) # turns off entire channels
+            layers.append(nn.Dropout2d(p=dropout)) # turns off entire channels
             current_channels = out_channels
         self.conv_block = nn.Sequential(*layers)
 
@@ -56,7 +56,7 @@ class ChessCNN(nn.Module):
         for hidden_dim in fc_dim:
             mlp_modules.append(nn.Linear(input_size, hidden_dim))
             mlp_modules.append(activation_layer())
-            mlp_modules.append(nn.Dropout(p=dropout_p)) # turns off individual neurons
+            mlp_modules.append(nn.Dropout(p=dropout)) # turns off individual neurons
             input_size_mlp = hidden_dim
 
         mlp_modules.append(nn.Linear(input_size_mlp, 1))
@@ -68,6 +68,6 @@ class ChessCNN(nn.Module):
         x = self.fc_block(x)
         return x
 
-    def get_congig(self):
+    def get_config(self):
         return self.hyperparams
     
