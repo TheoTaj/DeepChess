@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=2           # Number of CPU cores to allocate
 #SBATCH --mem-per-cpu=4G            # Memory to allocate per allocated CPU core
 #SBATCH --gres=gpu:1                # Number of GPU's
-#SBATCH --time=01:00:00              # Max execution time
+#SBATCH --time=03:00:00              # Max execution time
 #
 
 cd $SLURM_SUBMIT_DIR
@@ -17,4 +17,10 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate /home/theotaj/anaconda3/envs/deepchess
 
 # Run your Python script
-python src/train_CNN.py
+python src/train_CNN.py \
+    --lr 0.0005 \
+    --dropout 0.4 \
+    --alpha 1.0 \
+    --model_name "CNN_TUNE_36" \
+    --conv_filters 32 64 128 \
+    --fc_layers 512 256

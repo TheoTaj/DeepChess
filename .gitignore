@@ -17,3 +17,5 @@ dc.sbatch
 
 log/
 *.log
+
+src/grid_search.txt

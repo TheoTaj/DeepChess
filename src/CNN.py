@@ -56,9 +56,9 @@ class ChessCNN(nn.Module):
             mlp_modules.append(nn.Linear(input_size, hidden_dim))
             mlp_modules.append(activation_layer())
             mlp_modules.append(nn.Dropout(p=dropout)) # turns off individual neurons
-            input_size_mlp = hidden_dim
+            input_size = hidden_dim
 
-        mlp_modules.append(nn.Linear(input_size_mlp, 1))
+        mlp_modules.append(nn.Linear(input_size, 1))
         self.fc_block = nn.Sequential(*mlp_modules)
 
     def forward(self, x):
