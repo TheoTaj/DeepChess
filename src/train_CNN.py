@@ -168,7 +168,7 @@ if __name__== "__main__":
     args = parser.parse_args()
     
     config = {
-        "epochs": 100,
+        "epochs": 200,
         "lr": args.lr,
         "alpha": args.alpha,
         "batch_size": 128,
@@ -179,6 +179,7 @@ if __name__== "__main__":
         "dropout": args.dropout,
         "activation": nn.ELU,
         "model_name": args.model_name, #used for saving the model and for wandb run name
+        "patience": 15
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -220,5 +221,6 @@ if __name__== "__main__":
         model_name=config["model_name"],
         n_epochs=config["epochs"],
         lr=config["lr"],
-        alpha=config["alpha"]
+        alpha=config["alpha"],
+        patience=config["patience"]
     )

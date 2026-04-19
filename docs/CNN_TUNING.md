@@ -74,6 +74,7 @@ This makes 16 combinaitions to be tested. But two of them were already tested in
 | **FC Layers (MLP)** | `[[512, 256, 128], [1024, 512, 256]]` | Deeper MLP is still better, this time we try an MLP with more neurons but still 3 layers. |
 
 This makes 8 combinaitions. One of them was already tested (model 46). => 7 mores tests.
+! Now we see that runs start to reach 100 epochs, let's limit them to 200 and let's increase the patience to 15.
 
 I push in github but i don't have the results yet. I will update this section once I have them.
 
