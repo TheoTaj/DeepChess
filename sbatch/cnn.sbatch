@@ -17,10 +17,4 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate /home/theotaj/anaconda3/envs/deepchess
 
 # Run your Python script
-python src/train_CNN.py \
-    --lr 0.0005 \
-    --dropout 0.4 \
-    --alpha 1.0 \
-    --model_name "CNN_TUNE_36" \
-    --conv_filters 32 64 128 \
-    --fc_layers 512 256
+python src/train_CNN.py --lr 0.00005 --dropout 0.15 --alpha 1.0 --model_name "CNN_TUNE_57" --conv_filters 32 64 128 --fc_layers 1024 512 256

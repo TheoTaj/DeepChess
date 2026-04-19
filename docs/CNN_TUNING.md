@@ -13,7 +13,7 @@ We utilized a **Grid Search** approach to explore the interaction between learni
 * **Scheduler:** Implemented to reduce the learning rate upon plateauing to refine convergence.
 * **Epochs:** Maximum of 100 epochs, controlled by **Early Stopping** (patience = 10) to prevent overfitting and save computational resources.
 
-## 3. Grid Search Configuration
+## 3. First Grid Search Configuration
 A total of **36 combinations** were tested based on the following axes:
 
 | Hyperparameter | Values Tested |
@@ -41,8 +41,41 @@ The following parameters were held constant to serve as a baseline:
 2.  **MLP Depth:** There is a significant performance boost when moving from a single hidden layer `[500]` to a dual-layer architecture `[512, 256]`. The deeper MLP allows the model to process the high-level features extracted by the CNN more effectively.
 3.  **The "Slow Learner" (4th Model):** The 4th best model reached the 100-epoch limit without triggering Early Stopping. With a Dropout of 0.3, this model exhibits strong regularization potential. Its performance indicates it was still improving; given more time or a slightly lower learning rate, it could potentially outperform the current leader by finding a flatter, more generalizable local minimum.
 
-## 6. Future Roadmap
-Based on these findings, the next steps are:
-1.  **Refined Grid Search:** Extend the search towards lower Learning Rates (`0.0001`) and lower Dropout (`0.1 - 0.15`) to confirm the trend.
-2.  **Architecture Expansion:** Test a wider MLP.
-3.  **Final Scaling:** Once the "Elite" configuration is locked, proceed to training on the full **5M rows** dataset.
+## 6. Refined Grid Search (Phase 2)
+The objective is to explore the "edges" of the Phase 1 results to find the true peak performance. This grid consists of **16 unique combinations**.
+
+| Hyperparameter | Values Tested | Justification |
+| :--- | :--- | :--- |
+| **Learning Rate (LR)** | `[0.0005, 0.0001]` | We keep the previous winner ($0.0005$) and test a lower rate ($0.0001$) to see if a slower convergence leads to a better local minimum. |
+| **Dropout** | `[0.15, 0.2]` | Since $0.2$ was the best and overfitting was minimal, we test a lower value ($0.15$) to allow the model to capture more complex features. |
+| **Conv Filters** | `[[20, 50], [32, 64, 128]]` | The performance gap between these two was negligible (0.00012 in loss) so we keep them. |
+| **FC Layers (MLP)** | `[[512, 256], [512, 256, 128]]` | Deeper MLP was better. We now test if adding a third layer (`128`) further helps in compressing tactical features into a single evaluation score. |
+
+This makes 16 combinaitions to be tested. But two of them were already tested in the first grid search (models 29 and 27), so we will only need to test 14 new combinations in the second grid search.
+
+## 7. Results of phase 2
+
+| Rank | Model Name | LR | Dropout | Conv Filters | FC Layers | Epochs | Test Loss |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | 46 | 0.0001 | 0.15 | 32, 64, 128 | 512, 256, 128 | 97 | 0.13803 |
+| 2 | 44 | 0.0001 | 0.15 | 20, 50 | 512, 256, 128 | 100 | 0.14064 |
+| 3 | 49 | 0.0001 | 0.2 | 32, 64, 128 | 512, 256, 128 | 100 | 0.14078 | 
+| 4 | 29| 0.0005| 0.2| 32,64,128| 512,256| 73 | 0.14105|
+
+=> for phase 3, we explore in the same direction.
+
+## 8. Refined Grid Search (Phase 3)
+
+| Hyperparameter | Values Tested | Justification |
+| :--- | :--- | :--- |
+| **Learning Rate (LR)** | `[0.0001, 0.00005]` | We keep the previous winner and keep exploring lower lr|
+| **Dropout** | `[0.1, 0.15]` | Again, same logic |
+| **Conv Filters** | `[[32, 64, 128]]` | Here we stop [20, 50] because it clearly seems to be less good|
+| **FC Layers (MLP)** | `[[512, 256, 128], [1024, 512, 256]]` | Deeper MLP is still better, this time we try an MLP with more neurons but still 3 layers. |
+
+This makes 8 combinaitions. One of them was already tested (model 46). => 7 mores tests.
+
+I push in github but i don't have the results yet. I will update this section once I have them.
+
+
+
