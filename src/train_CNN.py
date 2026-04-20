@@ -194,7 +194,7 @@ if __name__== "__main__":
     parser.add_argument("--epochs", type=int, required=True, help="Maximum number of epochs")
     parser.add_argument("--patience", type=int, required=True, help="Early stopping patience")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
-    parser.add_argument("--dataset_path", type=str, required=True, help="Path to the parquet dataset")µ
+    parser.add_argument("--dataset_path", type=str, required=True, help="Path to the parquet dataset")
 
     parser.add_argument("--scheduler_factor", type=float, default=0.5, help="Factor by which LR is reduced (default: 0.5)")
     parser.add_argument("--scheduler_patience", type=int, default=5, help="Epochs without improvement before LR reduction (default: 5)")
