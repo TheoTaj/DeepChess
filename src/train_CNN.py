@@ -6,6 +6,7 @@ import wandb
 import argparse
 import numpy as np
 import random
+import os
 
 from dataset import ChessDataset, fen_to_tensor
 from CNN import ChessCNN
@@ -22,7 +23,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-def train_CNN(model, train_loader, test_loader, device, model_path, model_name, n_epochs=100, lr=0.01, alpha=1.0, patience=10):
+def train_CNN(model, train_loader, test_loader, device, model_path, model_name, n_epochs=100, lr=0.01, alpha=1.0, patience=10, scheduler_factor=1, scheduler_patience=5):
     
     if str(device) == "cuda" and not torch.cuda.is_available():
         print("CUDA is not available. No training")
@@ -38,6 +39,7 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
 
     model_config = model.get_config()
 
+
     train_config = {
         "architecture": "CNN",
         "lr": lr,
@@ -45,7 +47,10 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
         "batch_size": train_loader.batch_size,
         "optimizer": "Adam",
         "alpha": alpha,
-        "patience": patience
+        "patience": patience,
+        "scheduler": "ReduceLROnPlateau" if scheduler_factor < 1 else "None",
+        "scheduler_factor": scheduler_factor,
+        "scheduler_patience": scheduler_patience,
     }
     
     run = wandb.init(
@@ -57,10 +62,38 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr) # model.parameters() returns the weights and biases of the model
 
-    best_test_loss = float('inf')
+    if scheduler_factor < 1:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=scheduler_factor,
+            patience=scheduler_patience,
+            verbose=True,
+        )
+    else:
+        scheduler = None
+
+    if os.path.exists(model_path):
+        print(f"Loading model from {model_path} !")
+        checkpoint = torch.load(model_path)
+
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if checkpoint.get('scheduler_state_dict') is not None and scheduler is not None:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        start_epoch = checkpoint['epoch'] + 1
+        best_test_loss = checkpoint['best_test_loss']
+        print(f"Continuing training at epoch {start_epoch}")
+
+    else:
+        start_epoch = 0
+        best_test_loss = float('inf')
+
     epochs_no_improve = 0
     early_stop = False
-    for epoch in range(n_epochs):
+    
+    for epoch in range(start_epoch, n_epochs):
         if early_stop:
             break
             
@@ -104,11 +137,16 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
 
         avg_test_loss = test_loss / len(test_loader)
 
+        if scheduler is not None:
+            scheduler.step(avg_test_loss)
+        current_lr = optimizer.param_groups[0]['lr']
+
         metrics = {
             "train_loss": train_loss /len(train_loader),
             "test_loss": avg_test_loss,
             "train_sign_acc": train_correct_sign / train_samples,
             "test_sign_acc": test_correct_sign / test_samples,
+            "learning_rate": current_lr,
             "epoch": epoch + 1
         }
         run.log(metrics)
@@ -119,7 +157,15 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
             best_test_loss = avg_test_loss
             epochs_no_improve = 0
 
-            torch.save(model.state_dict(), model_path) # save the best model
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
+                'best_test_loss': best_test_loss,
+            }
+
+            torch.save(checkpoint, model_path) # save the best model
             print(f"New best model saved with test_loss={best_test_loss:.4f}")
         else:
             epochs_no_improve += 1
@@ -131,26 +177,6 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
     print("Finished Training.")
     run.finish()
 
-
-""" grid search for hyperparameters. Déjà on fixe alpha à 1 pour le CNN classique. Ensuite on refera en tunant alpha.
-
-    1. CNN MSE sym:
-
-        - lr: [0.005, 0.001, 0.0005]
-        - dropout: [0.2, 0.3, 0.4]
-        - conv_filters: [ [20, 50] , [32, 64, 128]]
-        - fc_layers: [[500], [512, 256]]
-
-    2. CNN Asym:
-
-        - alpha: [1.2, 1.5, 2]
-        - lr: [0.01, 0.005, 0.001]
-        - dropout: [0.2, 0.3, 0.4]
-        - conv_filters: [ [20, 50] , [32, 64, 128]]
-        - fc_layers: [[500], [512, 256]]
-
-
-"""
 if __name__== "__main__":
 
     parser = argparse.ArgumentParser(description="Train ChessCNN with custom hyperparameters")
@@ -165,21 +191,31 @@ if __name__== "__main__":
     parser.add_argument("--conv_filters", type=int, nargs='+', required=True, help="List of conv filters")
     parser.add_argument("--fc_layers", type=int, nargs='+', required=True, help="List of hidden layers size")
 
+    parser.add_argument("--epochs", type=int, required=True, help="Maximum number of epochs")
+    parser.add_argument("--patience", type=int, required=True, help="Early stopping patience")
+    parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
+    parser.add_argument("--dataset_path", type=str, required=True, help="Path to the parquet dataset")µ
+
+    parser.add_argument("--scheduler_factor", type=float, default=0.5, help="Factor by which LR is reduced (default: 0.5)")
+    parser.add_argument("--scheduler_patience", type=int, default=5, help="Epochs without improvement before LR reduction (default: 5)")
+
     args = parser.parse_args()
     
     config = {
-        "epochs": 200,
+        "epochs": args.epochs,
         "lr": args.lr,
         "alpha": args.alpha,
-        "batch_size": 128,
-        "parquet_path": "data/dataset_100000.parquet",
+        "batch_size": args.batch_size,
+        "parquet_path": args.dataset_path,
         "conv_filters": args.conv_filters,
         "conv_kernels": [5, 3], # on ne tune pas
         "fc_layers": args.fc_layers,
         "dropout": args.dropout,
         "activation": nn.ELU,
         "model_name": args.model_name, #used for saving the model and for wandb run name
-        "patience": 15
+        "patience": args.patience,
+        "scheduler_factor": args.scheduler_factor,
+        "scheduler_patience": args.scheduler_patience,
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -210,6 +246,7 @@ if __name__== "__main__":
     )
 
     model.to(device)
+    os.makedirs("models", exist_ok=True)
     model_path = f"models/{config['model_name']}.pth"
 
     train_CNN(
@@ -222,5 +259,7 @@ if __name__== "__main__":
         n_epochs=config["epochs"],
         lr=config["lr"],
         alpha=config["alpha"],
-        patience=config["patience"]
+        patience=config["patience"],
+        scheduler_factor=config["scheduler_factor"],
+        scheduler_patience=config["scheduler_patience"],
     )
