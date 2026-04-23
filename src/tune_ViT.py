@@ -13,17 +13,17 @@ from train_ViT import train_ViT
 
 import optuna.storages
 
-storage = "sqlite:///vit_tuning.db"
-study_name = "chess_vit_tuning"
+storage = "sqlite:///vit_tuning_p2.db"
+study_name = "chess_vit_tuning_p2"
 
 FIXED = {
-    "epochs": 100,
+    "epochs": 150,
     "warmup_epochs": 5,
     "alpha": 1.0,
     "batch_size": 128,
-    "patience": 10,
+    "patience": 15,
     "scheduler_factor": 0.5,
-    "scheduler_patience": 4,
+    "scheduler_patience": 6,
     "dataset_path": "data/dataset_100000.parquet",
 }
 
@@ -35,20 +35,27 @@ def objective(trial):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
-    # --- Suggest hyperparameters ---
-    lr = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
-    weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
-    dropout = trial.suggest_float("dropout", 0.0, 0.2)
-    n_blocks = trial.suggest_categorical("n_blocks", [2, 4, 6])
+    # Ranges for phase 1
+    # lr = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
+    # weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-2, log=True)
+    # dropout = trial.suggest_float("dropout", 0.0, 0.2)
+    # n_blocks = trial.suggest_categorical("n_blocks", [2, 4, 6])
+    # pair = trial.suggest_categorical("embed_n_heads_pair", [
+    #     "64,2", "64,4", "128,4", "128,8", "256,4", "256,8"
+    # ])
+    # embed_dim, n_heads = [int(x) for x in pair.split(",")]
+    # mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256, 512])
 
-    pair = trial.suggest_categorical("embed_n_heads_pair", [
-        "64,2", "64,4", "128,4", "128,8", "256,4", "256,8"
-    ])
+    # Ranges for phase 2
+    lr = trial.suggest_float("lr", 5e-4, 1e-2, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-2, log=True)
+    dropout = trial.suggest_float("dropout", 0.0, 0.15)
+    n_blocks = trial.suggest_categorical("n_blocks", [2, 4])
+    pair = trial.suggest_categorical("embed_n_heads_pair", ["128,8", "256,8"])
     embed_dim, n_heads = [int(x) for x in pair.split(",")]
-        
     mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256, 512])
 
-    model_name = f"ViT_TUNE_{trial.number}"
+    model_name = f"ViT_TUNE_{43 + trial.number}"
 
     # --- Build model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -109,7 +116,7 @@ if __name__ == "__main__":
 
     study.optimize(
         objective,
-        n_trials=40,        # total number of trials you want
+        n_trials=10,        # total number of trials you want
         n_jobs=1,           # keep at 1 — parallelism handled at cluster level
     )
 
