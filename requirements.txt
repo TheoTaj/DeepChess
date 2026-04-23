@@ -7,3 +7,4 @@ python-chess
 python-dotenv
 datasets
 wandb
+optuna

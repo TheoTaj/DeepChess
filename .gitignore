@@ -10,7 +10,7 @@
 src/__pycache__/
 
 .env
-dc.sbatch
+*.sbatch
 
 /temp
 *.svg
@@ -19,3 +19,6 @@ log/
 *.log
 
 src/grid_search.txt
+
+*.db
+*.out
