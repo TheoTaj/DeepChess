@@ -13,8 +13,8 @@ from train_ViT import train_ViT
 
 import optuna.storages
 
-storage = "sqlite:///vit_tuning_p2.db"
-study_name = "chess_vit_tuning_p2"
+storage = "sqlite:///vit_tuning_p3.db"
+study_name = "chess_vit_tuning_p3"
 
 FIXED = {
     "epochs": 150,
@@ -47,15 +47,25 @@ def objective(trial):
     # mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256, 512])
 
     # Ranges for phase 2
-    lr = trial.suggest_float("lr", 5e-4, 1e-2, log=True)
-    weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-2, log=True)
-    dropout = trial.suggest_float("dropout", 0.0, 0.15)
-    n_blocks = trial.suggest_categorical("n_blocks", [2, 4])
-    pair = trial.suggest_categorical("embed_n_heads_pair", ["128,8", "256,8"])
-    embed_dim, n_heads = [int(x) for x in pair.split(",")]
-    mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256, 512])
+    # lr = trial.suggest_float("lr", 5e-4, 1e-2, log=True)
+    # weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-2, log=True)
+    # dropout = trial.suggest_float("dropout", 0.0, 0.15)
+    # n_blocks = trial.suggest_categorical("n_blocks", [2, 4])
+    # pair = trial.suggest_categorical("embed_n_heads_pair", ["128,8", "256,8"])
+    # embed_dim, n_heads = [int(x) for x in pair.split(",")]
+    # mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256, 512])
 
-    model_name = f"ViT_TUNE_{43 + trial.number}"
+    # Ranges for phase 3
+    lr = trial.suggest_float("lr", 8e-4, 4e-3, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-2, log=True)
+    dropout = trial.suggest_float("dropout", 0.0, 0.12)
+    n_blocks = trial.suggest_categorical("n_blocks", [2, 4])
+    mlp_dim = trial.suggest_categorical("mlp_dim", [128, 256])
+    embed_dim = 128
+    n_heads = 8
+
+
+    model_name = f"ViT_TUNE_{83 + trial.number}"
 
     # --- Build model ---
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
