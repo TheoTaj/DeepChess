@@ -122,7 +122,7 @@ For this phase I keep the same fixed parameters as for phase 2. Here are the cha
 | **Embed Dim, N Heads** | `"128,8"` | Completely dominates so we only keep these values. |
 | **MLP Dim** | `[128, 256]` | Drop 512 compared to phase 2 |
 
-## 6. Results of phase 3
+## 6. Results of Phase 3
 
 | Rank | Trial | Loss | lr | weight_decay | dropout | n_blocks | embed_dim, n_heads | mlp_dim |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -168,5 +168,37 @@ The improvement in the loss between phase 2 and phase 3 is negligible (0.15221 a
 I run this configuration once with `train_ViT.py` (Optuna not needed here).
 
 ## 8. Final results
+
+| Model name | Loss | lr | weight_decay | dropout | n_blocks | embed_dim, n_heads | mlp_dim |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| ViT_5M | 0.10521 | 1.95e-3 | 9.48e-4 | 0.065 | 2 | 128, 8 | 256 |
+
+The final loss of the ViT (0.10521) is larger than for the CNN (0.075707). Several factors likely explain this gap:
+
+1. **Inductive bias mismatch:** CNNs are inherently biased toward local spatial structure — their convolutional filters naturally capture piece interactions within a neighborhood, which maps well onto the 8×8 chessboard. ViTs, by contrast, have no such prior: they must *learn* spatial relationships from scratch through attention, which requires significantly more data and depth to compensate.
+
+2. **Model depth:** The final ViT configuration uses only 2 transformer blocks, which was selected during tuning on 100K samples. This is a very shallow attention stack — with only 2 rounds of self-attention, the model has limited ability to compose complex positional relationships across the board. Deeper ViTs (4-6 blocks) are typically needed before the attention mechanism becomes competitive, but those were implicitly penalized during tuning because they need more data to shine.
+
+3. **Tuning dataset size:** The hyperparameter search was conducted on 100K samples for both models, but this disproportionately disadvantages the ViT. CNNs generalize well from small data due to their inductive biases, while ViTs are known to require substantially larger datasets before their attention mechanism becomes effective. As a result, the tuning process systematically selected a ViT configuration optimized for small-data behavior, which may not be the optimal configuration at the 5M sample scale.
+
+4. **Learning rate schedule:** The ViT's learning rate decayed less aggressively than the CNN's over training (finishing around 6e-5 vs ~1.5e-6 for the CNN), suggesting the ViT may not have fully converged into a sharp minimum by the end of training.
+
+While these results are accepted as the definitive outcome of the tuning protocol, two additional configurations with slightly different were tested on the full 5M dataset out of curiosity, to assess whether the shallow depth imposed by the small-data tuning was the main limiting factor for the ViT (see section 9).
+
+## 9. Additional tests
+
+As mentioned previously, I think the results in section 8 can be accepted as the final results of the ViT training because they come from a scientific and well-developped fine-tuning protocol. However, I still wanted to test out two configurations to see if the ViT could actually perform better than the CNN. 
+
+So I did two more runs with the same config as in section 7, except for the following parameters that I changed:
+
+| Hyperparameter | Old (Section 7: Final Training) | New | Justification |
+| :--- | :--- | :--- | :--- |
+| `epochs` | 100 | 150 | Deeper models need more epochs to converge; the original run exhausted all 100 epochs without early stopping, suggesting the model had not fully converged. |
+| `warmup_epochs` | 5 | 10 | With `n_blocks=4` and `6`, the attention mechanism is more complex and more sensitive to large gradient updates early in training, requiring a longer stabilization phase. |
+| `patience` | 10 | 15 | With more epochs and a higher LR schedule, the loss curve is noisier for longer; a higher patience avoids premature early stopping before the model has had time to recover from LR reductions. |
+| `scheduler_patience` | 4 | 6 | Consistent with the increased early stopping patience — the LR scheduler should wait longer before reducing on temporary fluctuations, especially with deeper and noisier models. |
+| `n_blocks` | 2 | 4 and 6 | The depth of 2 was selected during tuning on 100K samples, which may have penalized deeper models that require more data to outperform shallower ones. |
+
+## 10. Results of the two additional tests
 
 > COMING SOON
