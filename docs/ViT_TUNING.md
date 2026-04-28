@@ -201,4 +201,11 @@ So I did two more runs with the same config as in section 7, except for the foll
 
 ## 10. Results of the two additional tests
 
-> COMING SOON
+| Model name | Loss | lr | weight_decay | dropout | n_blocks | embed_dim, n_heads | mlp_dim |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| ViT_5M_Test1 | `0.08301` | 1.95e-3 | 9.48e-4 | 0.065 | 4 | 128, 8 | 256 |
+| ViT_5M_Test2 | `0.07645` | 1.95e-3 | 9.48e-4 | 0.065 | 6 | 128, 8 | 256 |
+
+`Note:` ViT_5M_Test1 stopped after 142 epochs because no improvement was made after 15 consecutive epochs.
+
+We see that now the final losses are much closer to the results of the CNN, which goes toward the fact that the ViT could actually perform better than the CNN with its own training/tuning protocol. We can also see on wandb that continuing the training for `ViT_5M_Test2` could further increase performance.

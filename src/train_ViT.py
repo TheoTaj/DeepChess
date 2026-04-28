@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = False
 
 
 def train_ViT(model, train_loader, test_loader, device, model_path, model_name, n_epochs=100, lr=0.01, alpha=1.0, 
-            patience=10, scheduler_factor=1, scheduler_patience=5, weight_decay=1e-4, warmup_epochs=5):
+            patience=10, scheduler_factor=1, scheduler_patience=5, weight_decay=1e-4, warmup_epochs=5, wandb_run_id=None):
     
     if str(device) == "cuda" and not torch.cuda.is_available():
         print("CUDA is not available. No training")
@@ -57,7 +57,9 @@ def train_ViT(model, train_loader, test_loader, device, model_path, model_name, 
         entity="DeepChess",
         name=model_name,
         project="DeepChess",
-        config={**model_config, **train_config}
+        config={**model_config, **train_config},
+        id=wandb_run_id,
+        resume="allow"
     )
 
     # Use of AdamW for weight decay
@@ -218,6 +220,8 @@ if __name__== "__main__":
     parser.add_argument("--scheduler_patience", type=int, default=5, help="Epochs without improvement before LR reduction (default: 5)")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay for the AdamW optimizer")
 
+    parser.add_argument("--wandb_run_id", type=str, default=None, help="WandB run ID to resume (leave empty for new run)")
+
     args = parser.parse_args()
     
     config = {
@@ -236,7 +240,8 @@ if __name__== "__main__":
         "n_blocks": args.n_blocks,
         "n_heads": args.n_heads,
         "mlp_dim": args.mlp_dim,
-        "weight_decay": args.weight_decay
+        "weight_decay": args.weight_decay,
+        "wandb_run_id": args.wandb_run_id
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -284,5 +289,6 @@ if __name__== "__main__":
         scheduler_factor=config["scheduler_factor"],
         scheduler_patience=config["scheduler_patience"],
         weight_decay=config["weight_decay"],
-        warmup_epochs=config["warmup_epochs"]
+        warmup_epochs=config["warmup_epochs"],
+        wandb_run_id=config["wandb_run_id"]
     )
