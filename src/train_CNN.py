@@ -68,6 +68,8 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
             mode="min",
             factor=scheduler_factor,
             patience=scheduler_patience,
+            threshold=1e-3,
+            threshold_mode="rel",
         )
     else:
         scheduler = None

@@ -125,3 +125,10 @@ This model can be used for the final comparaison between the CNN and the ViT.
 **Analysis**:
 
 The Test Loss is very small. We can use the inverse of the tanh(cp/300) to get an estimate of the centipawn error. This gives us an estimated error of `22.75 centipawns`. 
+
+## 12. Normalized output
+
+Before the output of the model wasn't noramlized with a tanh() => outputs might be bigger than 1 or smaller than -1. Thus we retrain the full model with a tanh at the end of the MLP.
+Also for the ReduceLROnPlateau, we add a treshold of 1e-3 and we set the threshold mode to "rel" to avoid reducing the learning rate too fast.
+
+For now we don't launch runs because we check for potential issues.

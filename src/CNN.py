@@ -59,6 +59,7 @@ class ChessCNN(nn.Module):
             input_size = hidden_dim
 
         mlp_modules.append(nn.Linear(input_size, 1))
+        mlp_modules.append(nn.Tanh())
         self.fc_block = nn.Sequential(*mlp_modules)
 
     def forward(self, x):
@@ -71,14 +72,39 @@ class ChessCNN(nn.Module):
         return self.hyperparams
 
 if __name__ == "__main__":
+    import numpy as np
+    from dataset import fen_to_tensor
 
-    model = ChessCNN()
+    STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    MODEL_PATH = "models/CNN_5M.pth"
 
-    dummy_input = torch.zeros((1, 18, 8, 8))
-    
-    try:
-        output = model(dummy_input)
-        print("✅ Succès ! Le flux de données traverse tout le réseau.")
-        print(f"Forme de la sortie : {output.shape}") # Devrait être [1, 1]
-    except Exception as e:
-        print(f"❌ Erreur pendant le forward pass : {e}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Running on: {device}")
+
+    # ── Charger le modèle ────────────────────────────────────────────────────
+    model = ChessCNN(
+        in_channels=18,
+        conv_filters=[32, 64, 128],
+        conv_kernels=[5, 3],
+        fc_dim=[1024, 512, 256],
+        dropout=0.05,
+        activation_layer=nn.ELU
+    )
+    checkpoint = torch.load(MODEL_PATH, map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.to(device)
+    model.eval()
+    print(f"Modèle chargé depuis {MODEL_PATH}")
+
+    # ── Évaluer la position de départ ────────────────────────────────────────
+    tensor = fen_to_tensor(STARTING_FEN)
+    x = torch.from_numpy(tensor).float().unsqueeze(0).to(device)  # (1, 18, 8, 8)
+
+    with torch.no_grad():
+        raw = model(x).item()
+        normalized = torch.tanh(torch.tensor(raw)).item()
+
+    print(f"\nPosition : {STARTING_FEN}")
+    print(f"  Sortie brute du CNN : {raw:+.6f}")
+    print(f"  Après tanh          : {normalized:+.6f}")
+    print(f"  Interprétation      : {'Blancs avantagés' if normalized > 0 else 'Noirs avantagés' if normalized < 0 else 'Égalité'}")
