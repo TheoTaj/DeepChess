@@ -25,6 +25,9 @@ The following parameters were held constant to serve as a baseline:
 * **Batch Size (128):** A standard balance between stochastic noise and GPU memory utilization.
 * **Conv Kernels ([5, 3]):** Given the 8x8 dimensions of a chessboard, a 5x5 kernel followed by a 3x3 kernel provides an optimal receptive field to capture both global pawn structures and local tactical motifs without over-parameterizing the spatial part of the network.
 
+**_NOTE:_**  In the CNN architecture, we didn't used pooling because the size of the input is already small. Thus the effective receptive field is linear.
+
+
 ## 4. Results: Top 4 Models
 
 | Rank | Model Name | LR | Dropout | Conv Filters | FC Layers | Test Loss |
