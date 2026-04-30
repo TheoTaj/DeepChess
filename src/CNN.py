@@ -8,7 +8,7 @@ class ChessCNN(nn.Module):
     def __init__(self,
                  in_channels=18,
                  conv_filters=[20, 50],
-                 conv_kernels=[5, 3],
+                 conv_kernels=[5, 3, 3],
                  fc_dim=[500],
                  dropout=0.3,
                  activation_layer=nn.ELU

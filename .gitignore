@@ -6,6 +6,8 @@
 /.vscode/
 */csv
 
+deepchess-env/
+notebooks/
 /Pycache__/
 src/__pycache__/
 

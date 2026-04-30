@@ -7,3 +7,6 @@ python-chess
 python-dotenv
 datasets
 wandb
+chess
+ipykernel
+matplotlib

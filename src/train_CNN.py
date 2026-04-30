@@ -209,7 +209,7 @@ if __name__== "__main__":
         "batch_size": args.batch_size,
         "parquet_path": args.dataset_path,
         "conv_filters": args.conv_filters,
-        "conv_kernels": [5, 3], # on ne tune pas
+        "conv_kernels": [5, 3, 3], # on ne tune pas => grace au zip on fera 2 couches ou 3 couches en fonction de la longueur de conv_filters
         "fc_layers": args.fc_layers,
         "dropout": args.dropout,
         "activation": nn.ELU,
