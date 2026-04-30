@@ -118,10 +118,10 @@ def download_balanced_dataset(
 
 if __name__ == "__main__":
     download_balanced_dataset(
-        total_rows=5_000_000,
+        total_rows=100000,
         n_bins=50,
         K=750.0,
         mate_frac=0.01,
         max_mate_depth=5,
-        filename="df_5M_50_750"
+        filename="df_100k_50_750"
     )
