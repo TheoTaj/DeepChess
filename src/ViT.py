@@ -17,6 +17,7 @@ class PatchEmbedding(nn.Module):
 
     def forward(self, x):
         # The size of the input x is [B, C, H, W] (B=batch_size, C=in_channels, H=W=board_size)
+        x = x.permute(0, 2, 3, 1)
         x = x.reshape((x.shape[0], self.n_patches, -1)) # Reshape x to [B, HxW, C] before passing to linear layer
         x = self.proj(x) # [B, HxW, embed_size]
         return x # Now, for each batch B, we have [64, embed_size] tensors
@@ -63,6 +64,16 @@ class ChessViT(nn.Module):
                  dropout=0.1
                  ):
         super().__init__()
+        
+        assert embed_dim % n_heads == 0, f"embed_dim ({embed_dim}) must be divisible by n_heads ({n_heads})"
+
+        self.hyperparams = {
+            "embed_dim": embed_dim,
+            "n_blocks": n_blocks,
+            "n_heads": n_heads,
+            "mlp_dim": mlp_dim,
+            "dropout": dropout
+        }
 
         self.patch_emb = PatchEmbedding(
             board_size=board_size, 
@@ -97,6 +108,15 @@ class ChessViT(nn.Module):
         x = self.norm(x[:, 0]) 
   
         return torch.tanh(self.head(x))
+        # return self.head(x).squeeze(-1)
+
+    def get_config(self):
+        return self.hyperparams
+
+    def reset_head(self):
+        # Use this to reset the weights of the head if we change the normalization constant K
+        nn.init.xavier_uniform_(self.head.weight)
+        nn.init.zeros_(self.head.bias)
 
 if __name__=="__main__":
     print(torch.__version__)

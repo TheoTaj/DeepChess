@@ -12,6 +12,7 @@ def download_balanced_dataset(
     output_dir="data",
     filename="dataset_balanced_small",
     total_rows=100_000,
+<<<<<<< HEAD
     n_bins=20,
     K=300.0,
     seed=42,
@@ -21,6 +22,15 @@ def download_balanced_dataset(
     """
     Creates a balanced parquet file where each score bin is equally represented.
     A small fraction of mate positions (shallow only) is included.
+=======
+    n_bins=50,
+    K=300.0,
+    seed=42,
+):
+    """
+    Creates a balanced parquet file where each score bin is equally represented.
+    Mate positions are excluded. Only cp positions are used.
+>>>>>>> main
     
     Args:
         df_name (str): HuggingFace dataset name.
@@ -30,13 +40,17 @@ def download_balanced_dataset(
         n_bins (int): Number of equally spaced bins over (-1, 1).
         K (float): Normalization constant for tanh(cp / K).
         seed (int): Random seed.
+<<<<<<< HEAD
         mate_frac (float): Fraction of total_rows reserved for mate positions.
         max_mate_depth (int): Maximum mate-in-N accepted (e.g. 5 = mat en 5 coups max).
+=======
+>>>>>>> main
     """
     np.random.seed(seed)
     os.makedirs(output_dir, exist_ok=True)
     full_path = os.path.join(output_dir, f"{filename}.parquet")
 
+<<<<<<< HEAD
     # ── Quotas ───────────────────────────────────────────────────────────────
     n_mate_target  = int(total_rows * mate_frac)
     n_cp_target    = total_rows - n_mate_target
@@ -51,11 +65,20 @@ def download_balanced_dataset(
     print(f"Target cp   : {n_cp_target:,} ({per_bin} per bin, {n_bins} bins)")
     print(f"Target mate : {n_mate_target:,} (max depth = {max_mate_depth})")
     print(f"Total       : {total_rows:,}")
+=======
+    per_bin = total_rows // n_bins
+    bin_edges = np.linspace(-1.0, 1.0, n_bins + 1)
+    bins = [[] for _ in range(n_bins)]
+    filled = 0
+
+    print(f"Target: {per_bin} positions per bin, {n_bins} bins, {total_rows} total.")
+>>>>>>> main
 
     dataset = load_dataset(df_name, split="train", streaming=True, token=hf_token)
     dataset = dataset.shuffle(seed=seed, buffer_size=100_000)
 
     for row in dataset:
+<<<<<<< HEAD
         if cp_filled == n_cp_target and mate_filled == n_mate_target:
             break
 
@@ -80,10 +103,20 @@ def download_balanced_dataset(
         if cp_filled >= n_cp_target:
             continue
 
+=======
+        if filled == total_rows:
+            break
+
+        # Skip mate positions
+        if pd.notna(row.get('mate')):
+            continue
+        
+>>>>>>> main
         cp = row.get('cp')
         if cp is None or pd.isna(cp):
             continue
 
+<<<<<<< HEAD
         score   = np.tanh(cp / K)
         bin_idx = np.clip(np.searchsorted(bin_edges, score, side='right') - 1, 0, n_bins - 1)
 
@@ -125,3 +158,69 @@ if __name__ == "__main__":
         max_mate_depth=5,
         filename="df_100k_50_750"
     )
+=======
+        score = np.tanh(cp / K)
+        
+        # Find which bin this score belongs to
+        bin_idx = np.searchsorted(bin_edges, score, side='right') - 1
+        bin_idx = np.clip(bin_idx, 0, n_bins - 1)
+
+        if len(bins[bin_idx]) < per_bin:
+            bins[bin_idx].append({
+                'fen': row['fen'],
+                'cp': cp,
+                'mate': None,
+            })
+            filled += 1
+
+            if filled % 10_000 == 0:
+                counts = [len(b) for b in bins]
+                print(f"  Collected {filled}/{total_rows} | bin counts: min={min(counts)}, max={max(counts)}")
+
+    print(f"\nDone streaming. Collected {filled} positions.")
+    print("Bin counts:", [len(b) for b in bins])
+
+    all_rows = [row for b in bins for row in b]
+    df = pd.DataFrame(all_rows)
+    if 'depth' in df.columns:
+        df = df.drop(columns=['depth'])
+    df = df.sample(frac=1, random_state=seed).reset_index(drop=True)  # shuffle before saving
+
+    print(f"Saving to {full_path}...")
+    df.to_parquet(full_path, compression='snappy', index=False)
+    print("Done.")
+
+if __name__ == "__main__":
+    # download_balanced_dataset(
+    #     total_rows=5_000_000,
+    #     n_bins=50,
+    #     K=300.0,
+    #     filename="dataset_balanced_large"
+    # )
+
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import numpy as np
+
+    # --- Config ---
+    PARQUET_PATH = "data/dataset_balanced_large.parquet"
+    OUTPUT_IMG   = "balanced_large.png"
+    K = 300
+    N = 5_000_000
+    # --------------
+
+    df = pd.read_parquet(PARQUET_PATH)
+    print(f"Dataset length: {len(df)}")
+    print(df.head())
+
+    scores = np.tanh(df["cp"].values[:N] / K)
+
+    plt.hist(scores, bins=100)
+    plt.xlabel("Score")
+    plt.ylabel("Count")
+    plt.title(f"Normalized scores tanh(cp / {K})")
+    plt.axvline(0, color='red', linestyle='--', label='0 (equal)')
+    plt.legend()
+    plt.savefig("balanced_large.png")
+    plt.show()
+>>>>>>> main
