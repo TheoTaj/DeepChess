@@ -7,10 +7,6 @@ python-chess
 python-dotenv
 datasets
 wandb
-<<<<<<< HEAD
 chess
 ipykernel
 matplotlib
-=======
-optuna
->>>>>>> main
