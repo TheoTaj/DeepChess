@@ -108,9 +108,15 @@ class ChessViT(nn.Module):
         x = self.norm(x[:, 0]) 
   
         return torch.tanh(self.head(x))
+        # return self.head(x).squeeze(-1)
 
     def get_config(self):
         return self.hyperparams
+
+    def reset_head(self):
+        # Use this to reset the weights of the head if we change the normalization constant K
+        nn.init.xavier_uniform_(self.head.weight)
+        nn.init.zeros_(self.head.bias)
 
 if __name__=="__main__":
     print(torch.__version__)

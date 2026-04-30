@@ -1,5 +1,7 @@
 # ViT Hyperparameter Tuning Summary
 
+# Part 1: "scientific tuning"
+
 ## 0. Overview
 
 Globally, same principle as the CNN tuning:
@@ -209,3 +211,35 @@ So I did two more runs with the same config as in section 7, except for the foll
 `Note:` ViT_5M_Test1 stopped after 142 epochs because no improvement was made after 15 consecutive epochs.
 
 We see that now the final losses are much closer to the results of the CNN, which goes toward the fact that the ViT could actually perform better than the CNN with its own training/tuning protocol. We can also see on wandb that continuing the training for `ViT_5M_Test2` could further increase performance.
+
+# Part 2: continue training with assistant feedback
+
+Number of parameters of the ChessViT with the same hyperparameters as the previous runs:
+| n_blocks | Number of parameters |
+| :--- | :--- | 
+| 2 | 276225 |
+| 4 | 541185 |
+| 6 | 806145 |
+| 8 | 1071105 |
+
+-> The assistant said that 1M is ok so I'll go with 8 blocks of attention. This is the configuration I use for `ViT_5M_Test3`:
+```bash
+"epochs": 300
+"warmup_epochs": 10
+"alpha": 1.0
+"batch_size": 128
+"patience": 15
+"scheduler_factor": 0.5
+"scheduler_patience": 6
+"dataset_path": "data/dataset_5000000.parquet"
+
+"lr": 0.0001
+"weight_decay": 9.48e-4
+"dropout": 0.065
+"embed_dim": 128
+"n_blocks": 8
+"n_heads": 8
+"mlp_dim": 256
+```
+
+**Results**: this run ended early with early stopping so no good results.
