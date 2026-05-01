@@ -25,6 +25,10 @@ torch.backends.cudnn.benchmark = False
 
 def train_CNN(model, train_loader, test_loader, device, model_path, model_name, n_epochs=100, lr=0.01, alpha=1.0, patience=10, scheduler_factor=1, scheduler_patience=5):
     
+    if str(device) == "cpu":
+        print("Error: you must not train on CPU, ahh noob...")
+        return
+
     if str(device) == "cuda" and not torch.cuda.is_available():
         print("CUDA is not available. No training")
         return
@@ -35,13 +39,14 @@ def train_CNN(model, train_loader, test_loader, device, model_path, model_name, 
     else:
         criterion_train = AsymmetricMSE(alpha)
 
-    criterion_test = nn.MSELoss() # for evaluation we want to have comparable metrics.
+    criterion_test = criterion_train
 
     model_config = model.get_config()
-
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     train_config = {
         "architecture": "CNN",
+        "total_params": total_params,
         "lr": lr,
         "n_epochs": n_epochs,
         "batch_size": train_loader.batch_size,

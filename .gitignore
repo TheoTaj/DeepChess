@@ -10,6 +10,7 @@ deepchess-env/
 notebooks/
 /Pycache__/
 src/__pycache__/
+grid.txt
 
 .env
 *.sbatch
