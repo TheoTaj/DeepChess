@@ -48,6 +48,7 @@ class ChessDataset(Dataset):
                  seed=42): # ensures the shuffle is always the same
         
         print(f"Loading dataset from {parquet_path}...")
+        print(f"Normalizing centipawns with K={K} (y = tanh(cp/K))")
         df = pd.read_parquet(parquet_path)
 
         df = df.sample(frac=1, random_state=seed).reset_index(drop=True) # shuffle the dataset

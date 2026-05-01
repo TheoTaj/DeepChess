@@ -12,6 +12,8 @@ We restart from zero because we realized that our previous dataset had a bad dis
 * Max epochs: 150
 * Conv_kernels: [5, 3, 3]
 * Batch size: 128
+* K = 750
+* Dataset: df_100k_50_750
 
 
 Here is the grid :
@@ -25,19 +27,19 @@ Here is the grid :
 
 => We have 8 models to train and to test. Here are the results:
 
-| Rank | Model Name | LR  | Conv Filters | FC Layers | epochs | n_params | Test Loss | Test sign acc |
+| Rank | Model Name | LR | Conv Filters | FC Layers | epochs | n_params | Test Loss | Test sign acc |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1| CNN_TUN2_2| 0.00005| [32,64,128] | [1024,512,256] | 94 |9153249| 0.13496 | 0.9227 | | |
-| 2| CNN_TUN2_5| 0.0001| [32,64] | [1024,512,256] | 108 |4884833| 0.13571 | 0.926 | | |
-| 3| CNN_TUN2_6| 0.00005| [32,64] | [1024,512,256] | 136 | 4884833| 0.13657 | 0.9228 | | |
-| 4| CNN_TUN2_1| 0.0001| [32,64,128] | [1024,512,256] | 105 |9153249| 0.13726 | 0.9251 | | |
-| 5| CNN_TUN2_8| 0.00005| [32,64] | [512,256,128] | 149 |2295137| 0.13729 | 0.9232 | | |
-| 6| CNN_TUN2_3| 0.0001| [32,64,128]| [512,256,128] | 104 |4466401| 0.13782 | 0.9254 | | |
-| 7| CNN_TUN2_7| 0.0001| [32,64] | [512,256,128] | 91 |2295137| 0.13863 | 0.9236 | | |
-| 8| CNN_TUN2_4| 0.00005| [32,64,128] | [512,256,128] | 105 |4466401| 0.13864 | 0.9218 | | |
+| 1 | CNN_TUN2_2 | 0.00005 | [32,64,128] | [1024,512,256] | 150 | 9153249 | 0.081898 | 0.9205 |
+| 2 | CNN_TUN2_6 | 0.00005 | [32,64] | [1024,512,256] | 143 | 4884833 | 0.082128 | 0.9174 |
+| 3 | CNN_TUN2_1 | 0.0001 | [32,64,128] | [1024,512,256] | 98 | 9153249 | 0.08346 | 0.9205 |
+| 4 | CNN_TUN2_3 | 0.0001 | [32,64,128] | [512,256,128] | 134 | 4466401 | 0.083507 | 0.9204 |
+| 5 | CNN_TUN2_7 | 0.0001 | [32,64] | [512,256,128] | 136 | 2295137 | 0.08392 | 0.9181 |
+| 6 | CNN_TUN2_4 | 0.00005 | [32,64,128] | [512,256,128] | 150 | 4466401 | 0.0851 | 0.9171 |
+| 7 | CNN_TUN2_5 | 0.0001 | [32,64] | [1024,512,256] | 62 | 4884833 | 0.08523 | 0.9154 |
+| 8 | CNN_TUN2_8 | 0.00005 | [32,64] | [512,256,128] | 78 | 2295137 | 0.090361 | 0.909 |
 
 => Based on these results, we can start the full training on the big dataset with the parameters of model CNN_TUN2_2. But with one exception; due to the fact that we'll have a ReduceLROnPlateau scheduler, we can start with a higher learning rate of 0.0001 because the scheduler will reduce it if needed.
-Which means that we'll start the full training with the parameters of model CNN_TUN2_1. Yes this model is ranked 4th but it has the same architecture as the best model just with a higher learning rate. And this model have 9M paramters to train which is higher that than the second and third best models.
+Which means that we'll start the full training with the parameters of model CNN_TUN2_1. Yes this model is ranked 3rd but it has the same architecture as the best model just with a higher learning rate. And this model have 9M paramters to train which is higher that than the second best model.
 
 ### Final training:
 
@@ -68,4 +70,6 @@ For the batch size we double it to 256 because we have more data and we want to 
 ### Results:
 
 Come back for the results. 
+
+
 

@@ -202,6 +202,7 @@ if __name__== "__main__":
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to the parquet dataset")
 
+    parser.add_argument("--K", type=float, required=True, help="Scaling factor for Centipawns (y = tanh(cp/K))")
     parser.add_argument("--scheduler_factor", type=float, default=0.5, help="Factor by which LR is reduced (default: 0.5)")
     parser.add_argument("--scheduler_patience", type=int, default=5, help="Epochs without improvement before LR reduction (default: 5)")
 
@@ -213,6 +214,7 @@ if __name__== "__main__":
         "alpha": args.alpha,
         "batch_size": args.batch_size,
         "parquet_path": args.dataset_path,
+        "K": args.K,
         "conv_filters": args.conv_filters,
         "conv_kernels": [5, 3, 3], # on ne tune pas => grace au zip on fera 2 couches ou 3 couches en fonction de la longueur de conv_filters
         "fc_layers": args.fc_layers,
@@ -227,8 +229,8 @@ if __name__== "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on: {device}")
 
-    train_set = ChessDataset(parquet_path=config["parquet_path"], train=True)
-    test_set = ChessDataset(parquet_path=config["parquet_path"], train=False)
+    train_set = ChessDataset(parquet_path=config["parquet_path"], K=config["K"],train=True)
+    test_set = ChessDataset(parquet_path=config["parquet_path"], K=config["K"],train=False)
 
     train_loader = DataLoader(
         train_set, 
