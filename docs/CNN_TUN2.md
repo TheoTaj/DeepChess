@@ -69,7 +69,7 @@ For the batch size we double it to 256 because we have more data and we want to 
 
 ### Results:
 
-Come back for the results. 
+Results are good but the dataset is still unbalanced. Almost all games are in endgame, => we create a new dataset, see CNN_TUN3.md
 
 
 

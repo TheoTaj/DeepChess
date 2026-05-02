@@ -7,7 +7,7 @@
 #SBATCH --output=log/deepchess_cnn_%j.log      # Log-file (important!)
 #SBATCH --cpus-per-task=2           # Number of CPU cores to allocate
 #SBATCH --mem-per-cpu=4G            # Memory to allocate per allocated CPU core
-#SBATCH --gres=gpu:1                # Number of GPU's
+#SBATCH --gres=gpu:0                # Number of GPU's
 #SBATCH --time=0:10:00              # Max execution time
 #
 
@@ -17,4 +17,4 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate /home/theotaj/anaconda3/envs/deepchess
 
 # Run your Python script
-python src/CNN.py
+python src/dataset.py
