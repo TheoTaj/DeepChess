@@ -64,6 +64,80 @@ def evaluate(board, model, device):
         score = model(x).item()
     return score
 
+def quiescence(board, alpha, beta, maximizing_white, model, device, tt=None):
+    """
+    Quiescence search : continue searching captures and checks to avoid
+    the horizon effect. Only stops when the position is 'quiet'.
+
+    Args:
+        board (chess.Board)    : Current board state.
+        alpha (float)          : Alpha bound.
+        beta (float)           : Beta bound.
+        maximizing_white (bool): True if white is maximizing.
+        model                  : CNN model.
+        device                 : torch device.
+        tt (dict)              : Transposition table.
+
+    Returns:
+        float: Score from white's perspective.
+    """
+    # ── Stand-pat : évaluation statique de la position ───────────────────────
+    # Si la position est déjà bonne sans chercher plus loin, on peut couper
+    stand_pat = evaluate(board, model, device)
+
+    if maximizing_white:
+        if stand_pat >= beta:
+            return beta             # beta cut-off
+        alpha = max(alpha, stand_pat)
+    else:
+        if stand_pat <= alpha:
+            return alpha            # alpha cut-off
+        beta = min(beta, stand_pat)
+
+    # ── Terminaison ──────────────────────────────────────────────────────────
+    if board.is_checkmate():
+        return -1.0 if maximizing_white else 1.0
+    if board.is_stalemate() or board.is_insufficient_material() or board.can_claim_draw():
+        return 0.0
+
+    # ── Générer uniquement les coups "bruyants" (captures + échecs) ──────────
+    noisy_moves = []
+    for move in board.legal_moves:
+        if board.is_capture(move) or board.gives_check(move):
+            noisy_moves.append(move)
+
+    # Position calme → on s'arrête
+    if not noisy_moves:
+        return stand_pat
+
+    # Trier les coups bruyants avec MVV-LVA
+    noisy_moves.sort(key=lambda m: move_score(board, m), reverse=True)
+
+    # ── Récursion ─────────────────────────────────────────────────────────────
+    if maximizing_white:
+        best_score = stand_pat
+        for move in noisy_moves:
+            board.push(move)
+            score = quiescence(board, alpha, beta, False, model, device, tt)
+            board.pop()
+            best_score = max(best_score, score)
+            alpha      = max(alpha, score)
+            if beta <= alpha:
+                break
+        return best_score
+
+    else:
+        best_score = stand_pat
+        for move in noisy_moves:
+            board.push(move)
+            score = quiescence(board, alpha, beta, True, model, device, tt)
+            board.pop()
+            best_score = min(best_score, score)
+            beta       = min(beta, score)
+            if beta <= alpha:
+                break
+        return best_score
+
 
 def minimax(board, depth, alpha, beta, maximizing_white, model, device, tt=None):
     """
@@ -106,7 +180,7 @@ def minimax(board, depth, alpha, beta, maximizing_white, model, device, tt=None)
     if board.is_stalemate() or board.is_insufficient_material() or board.can_claim_draw():
         return 0.0
     if depth == 0:
-        return evaluate(board, model, device)
+        return quiescence(board, alpha, beta, maximizing_white, model, device, tt)
 
     # ── Récursion ────────────────────────────────────────────────────────────
     if maximizing_white:
