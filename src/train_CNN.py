@@ -236,13 +236,13 @@ if __name__== "__main__":
         train_set, 
         batch_size=config["batch_size"], 
         shuffle=True, 
-        num_workers=2
+        num_workers=8
     )
     test_loader = DataLoader(
         test_set, 
         batch_size=config["batch_size"], 
         shuffle=False, 
-        num_workers=2
+        num_workers=8
     )
 
     model = ChessCNN(
