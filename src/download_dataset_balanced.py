@@ -323,12 +323,49 @@ def analyze_dataset(parquet_path, K=750.0, sample_size=None):
     plt.savefig("dataset_analysis.png", dpi=150)
     plt.show()
 
+def load_opening_book_fens(file_path, n=50):
+    """
+    Lit le fichier Book.txt et extrait n FENs uniques au hasard.
+    """
+    import random
+    fens = []
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                # On ne garde que les lignes qui commencent par 'pos'
+                if line.startswith('pos '):
+                    # On retire le préfixe 'pos ' pour ne garder que la FEN
+                    fen = line.replace('pos ', '').strip()
+                    fens.append(fen)
+        
+        unique_fens = list(set(fens))
+        
+        print(f"Total de positions trouvées : {len(fens)}")
+        print(f"Positions uniques : {len(unique_fens)}")
+        
+        if len(unique_fens) < n:
+            print(f"Attention : Seulement {len(unique_fens)} positions uniques disponibles.")
+            return unique_fens
+        
+        selected_fens = random.sample(unique_fens, n)
+        
+        with open("data/opening_book_fens.txt", "w") as f:
+            for fen in selected_fens:
+                f.write(f"{fen}\n")
+        
+
+    except FileNotFoundError:
+        print(f"Erreur : Le fichier {file_path} n'a pas été trouvé.")
+        return []
+
+
 if __name__ == "__main__":
-    # balance_dataset_from_parquet(
-    #     input_path="data/kaggle.parquet",
-    #     total_rows=100_000, 
-    #     n_bins=50, 
-    #     K=300.0, 
-    #     filename="kaggle_100k_300"
+    # get_fighting_fens(
+    #     parquet_path="data/kaggle_100k_300.parquet",
+    #     n=50,
+    #     output_path="data/fighting_fens_2.txt"
     # )
-    analyze_dataset("data/kaggle_100k_300.parquet", K=300.0, sample_size=100_000)
+
+    load_opening_book_fens("data/Book.txt", n=50)

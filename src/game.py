@@ -60,7 +60,7 @@ class ChessGame:
         self.move_history    = []
 
         if self.headless:
-            pass  # rien à initialiser, play_headless() suffit
+            pass
         else:
             assert root is not None, "root (tk.Tk()) est requis en mode non-headless"
             self.root.title("DeepChess")
@@ -180,6 +180,16 @@ class ChessGame:
     def current_depth(self):
         return self.white_depth if self.board.turn == chess.WHITE else self.black_depth
 
+    def get_dynamic_depth(self):
+        base_depth = self.current_depth()
+        if self.get_material_count() < 20:
+            return base_depth + 1
+        return base_depth
+
+    def get_material_count(self):
+        values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+        return sum(len(self.board.pieces(pt, chess.WHITE)) + len(self.board.pieces(pt, chess.BLACK)) for pt in values) 
+
     def is_human_turn(self):
         return self.current_model() is None
 
@@ -220,9 +230,10 @@ class ChessGame:
 
     def ai_move(self):
         start = time.time()
+        current_depth = self.get_dynamic_depth()
         move, score = get_best_move(
             self.board.fen(), self.current_model(),
-            self.device, depth=self.current_depth(),
+            self.device, depth=current_depth,
             tt=self.tt
         )
         elapsed = time.time() - start
@@ -263,7 +274,20 @@ class ChessGame:
             self.game_over = True
             reason         = "Insufficient material"
         elif self.board.can_claim_draw():
-            self.result    = "draw"
+            # Détermination de la raison précise
+            if self.board.can_claim_threefold_repetition():
+                reason = "Draw claimed: Threefold repetition"
+            elif self.board.can_claim_fifty_moves():
+                reason = "Draw claimed: Fifty-move rule"
+            else:
+                reason = "Draw claimed (repetition or 50 moves)"
+
+            # Mise à jour de l'UI
+            self.status_var.set(reason)
+            
+            if self.headless:
+                print(f"  [RESULT] {reason}", flush=True)
+                
             self.game_over = True
             reason         = "Draw claimed"
         else:
@@ -347,16 +371,20 @@ if __name__ == "__main__":
     CONV_FILTERS = [64, 128, 256]
     FC_LAYERS    = [512, 256, 128]
 
-    model = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
+    model_sym = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
+
+    MODEL_PATH  = "models/CNN_ASYM_3.pth"
+    model_asym = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
 
     root = tk.Tk()
     ChessGame(
         root,
         white_model=None,   # None = humain
-        black_model=model,
+        black_model=model_sym,
         white_depth=3,
         black_depth=3,
         device=device,
         delay_ms=500,
+        starting_fen="4r3/4k3/8/8/8/3K4/8/8 w - - 0 1"
     )
     root.mainloop()
