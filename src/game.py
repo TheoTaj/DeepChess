@@ -35,55 +35,63 @@ def load_model(model_path, conv_filters, fc_layers, device):
 
 
 class ChessGame:
-    def __init__(self, root,
-                 white_model=None, black_model=None,
-                 white_depth=3, black_depth=3,
-                 device=None,
-                 delay_ms=500):
+    def __init__(self, root=None,
+             white_model=None, black_model=None,
+             white_depth=3, black_depth=3,
+             device=None,
+             delay_ms=500,
+             headless=False,
+             starting_fen=None):
 
         self.root        = root
-        self.board       = chess.Board()
+        self.board       = chess.Board(starting_fen) if starting_fen else chess.Board()
         self.white_model = white_model
         self.black_model = black_model
         self.white_depth = white_depth
         self.black_depth = black_depth
         self.device      = device or torch.device("cpu")
         self.delay_ms    = delay_ms
+        self.headless    = headless
         self.selected_square = None
         self.legal_targets   = []
         self.game_over       = False
-        self.tt               = {}  # Transposition table
+        self.tt              = {}
+        self.result          = None
+        self.move_history    = []
 
-        # ── UI ───────────────────────────────────────────────────────────────
-        self.root.title("DeepChess")
-        self.root.resizable(False, False)
+        if self.headless:
+            pass  # rien à initialiser, play_headless() suffit
+        else:
+            assert root is not None, "root (tk.Tk()) est requis en mode non-headless"
+            self.root.title("DeepChess")
+            self.root.resizable(False, False)
 
-        size = SQUARE_SIZE * 8
-        self.canvas = tk.Canvas(root, width=size, height=size)
-        self.canvas.pack()
-        self.canvas.bind("<Button-1>", self.on_click)
+            size = SQUARE_SIZE * 8
+            self.canvas = tk.Canvas(root, width=size, height=size)
+            self.canvas.pack()
+            self.canvas.bind("<Button-1>", self.on_click)
 
-        self.piece_images = self.load_piece_images("assets/pieces", SQUARE_SIZE)
+            self.piece_images = self.load_piece_images("assets/pieces", SQUARE_SIZE)
 
-        self.status_var = tk.StringVar(value="Game started !")
-        tk.Label(root, textvariable=self.status_var,
-                 font=("Helvetica", 13)).pack(pady=4)
+            self.status_var = tk.StringVar(value="Game started !")
+            tk.Label(root, textvariable=self.status_var,
+                    font=("Helvetica", 13)).pack(pady=4)
 
-        self.info_var = tk.StringVar(value="")
-        tk.Label(root, textvariable=self.info_var,
-                 font=("Helvetica", 11), fg="gray").pack()
+            self.info_var = tk.StringVar(value="")
+            tk.Label(root, textvariable=self.info_var,
+                    font=("Helvetica", 11), fg="gray").pack()
 
-        self.time_var = tk.StringVar(value="")
-        tk.Label(root, textvariable=self.time_var,
-                font=("Helvetica", 11), fg="gray").pack()
+            self.time_var = tk.StringVar(value="")
+            tk.Label(root, textvariable=self.time_var,
+                    font=("Helvetica", 11), fg="gray").pack()
 
-        btn = tk.Frame(root)
-        btn.pack(pady=5)
-        tk.Button(btn, text="Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn, text="Quit",    command=root.quit).pack(side=tk.LEFT, padx=5)
+            btn = tk.Frame(root)
+            btn.pack(pady=5)
+            tk.Button(btn, text="Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
+            tk.Button(btn, text="Quit",    command=root.quit).pack(side=tk.LEFT, padx=5)
 
-        self.render_board()
-        self.root.after(self.delay_ms, self.game_loop)
+            self.render_board()
+            self.root.after(self.delay_ms, self.game_loop)
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
@@ -178,13 +186,37 @@ class ChessGame:
     def game_loop(self):
         if self.game_over:
             return
-        if self.is_human_turn():
-            player = "White" if self.board.turn == chess.WHITE else "Black"
-            self.status_var.set(f"Your turn ({player}) — click a piece")
+        if self.headless:
+            # En headless : boucle synchrone jusqu'à la fin
+            while not self.game_over:
+                if self.is_human_turn():
+                    break  # impossible en headless sans input
+                self.ai_move_headless()
         else:
-            self.status_var.set("AI is thinking...")
-            self.root.update()
-            threading.Thread(target=self.ai_move, daemon=True).start()
+            if self.is_human_turn():
+                player = "White" if self.board.turn == chess.WHITE else "Black"
+                self.status_var.set(f"Your turn ({player}) — click a piece")
+            else:
+                self.status_var.set("AI is thinking...")
+                self.root.update()
+                threading.Thread(target=self.ai_move, daemon=True).start()
+
+    def ai_move_headless(self):
+        """Synchronous AI move for headless mode."""
+        start = time.time()
+        move, score = get_best_move(
+            self.board.fen(), self.current_model(),
+            self.device, depth=self.current_depth(),
+            tt=self.tt
+        )
+        elapsed = time.time() - start
+        self.move_history.append({
+            'move':    move.uci() if move else None,
+            'score':   score,
+            'elapsed': elapsed,
+            'player':  'white' if self.board.turn == chess.WHITE else 'black'
+        })
+        self.apply_move(move, score)
 
     def ai_move(self):
         start = time.time()
@@ -198,34 +230,49 @@ class ChessGame:
 
     def apply_move(self, move, score=None, elapsed=None):
         if move is None or move not in self.board.legal_moves:
-            self.status_var.set("Illegal move.")
+            if not self.headless:
+                self.status_var.set("Illegal move.")
             return
         self.board.push(move)
-        score_str = f"{score:+.4f}" if score is not None else ""
-        elapsed_str = f"{elapsed:.2f}s" if elapsed is not None else ""
-        self.info_var.set(f"Last move: {move.uci()}  |  score: {score_str}")
-        self.time_var.set(f"AI thinking time: {elapsed_str}")
-        self.selected_square = None
-        self.legal_targets   = []
-        self.render_board()
+
+        if not self.headless:
+            score_str   = f"{score:+.4f}" if score is not None else ""
+            elapsed_str = f"{elapsed:.2f}s" if elapsed is not None else ""
+            self.info_var.set(f"Last move: {move.uci()}  |  score: {score_str}")
+            self.time_var.set(f"AI thinking time: {elapsed_str}")
+            self.selected_square = None
+            self.legal_targets   = []
+            self.render_board()
+
         self.check_game_over()
-        if not self.game_over:
+
+        if not self.game_over and not self.headless:
             self.root.after(self.delay_ms, self.game_loop)
 
     def check_game_over(self):
         if self.board.is_checkmate():
-            winner = "Black" if self.board.turn == chess.WHITE else "White"
-            self.status_var.set(f"Checkmate ! {winner} wins !")
+            self.result    = "black" if self.board.turn == chess.WHITE else "white"
             self.game_over = True
+            reason         = "Checkmate"
         elif self.board.is_stalemate():
-            self.status_var.set("Stalemate ! Draw.")
+            self.result    = "draw"
             self.game_over = True
+            reason         = "Stalemate"
         elif self.board.is_insufficient_material():
-            self.status_var.set("Insufficient material. Draw.")
+            self.result    = "draw"
             self.game_over = True
+            reason         = "Insufficient material"
         elif self.board.can_claim_draw():
-            self.status_var.set("Draw claimed.")
+            self.result    = "draw"
             self.game_over = True
+            reason         = "Draw claimed"
+        else:
+            return  # partie pas terminée
+
+        if not self.headless:
+            msg = f"{reason} ! {self.result.capitalize()} wins !" if self.result != "draw" \
+                else f"{reason} ! Draw."
+            self.status_var.set(msg)
 
     # ── Human click ──────────────────────────────────────────────────────────
 
@@ -271,6 +318,24 @@ class ChessGame:
         self.render_board()
         self.root.after(self.delay_ms, self.game_loop)
         self.tt = {}
+
+    def play_headless(self, max_moves=200):
+        """
+        Runs the game synchronously to completion.
+        Returns result dict.
+        """
+        assert self.headless, "Use game_loop() for non-headless mode."
+        for _ in range(max_moves):
+            if self.game_over:
+                break
+            self.ai_move_headless()
+        if not self.game_over:
+            self.result = "draw"  # partie trop longue → nulle par défaut
+        return {
+            'result':       self.result,
+            'n_moves':      len(self.move_history),
+            'move_history': self.move_history,
+        }
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
