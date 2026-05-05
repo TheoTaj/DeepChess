@@ -159,6 +159,14 @@ def minimax(board, depth, alpha, beta, maximizing_white, model, device, tt=None)
         float: Best score found.
     """
 
+    if board.is_repetition(2):
+        return 0.0
+
+    if board.is_checkmate():
+        return -1.0 - depth * 0.05  if maximizing_white else 1.0 + depth * 0.05  # le joueur actuel est mat
+    if board.is_stalemate() or board.is_insufficient_material() or board.can_claim_draw():
+        return 0.0
+
     alpha_orig = alpha
     key = board._transposition_key()
 
@@ -175,10 +183,10 @@ def minimax(board, depth, alpha, beta, maximizing_white, model, device, tt=None)
                 return tt_score  # cut-off via TT
 
     # ── Terminaison ──────────────────────────────────────────────────────────
-    if board.is_checkmate():
-        return -1.0 if maximizing_white else 1.0  # le joueur actuel est mat
-    if board.is_stalemate() or board.is_insufficient_material() or board.can_claim_draw():
-        return 0.0
+    # if board.is_checkmate():
+    #     return -1.0 if maximizing_white else 1.0  # le joueur actuel est mat
+    # if board.is_stalemate() or board.is_insufficient_material() or board.can_claim_draw():
+    #     return 0.0
     if depth == 0:
         return quiescence(board, alpha, beta, maximizing_white, model, device, tt)
 
