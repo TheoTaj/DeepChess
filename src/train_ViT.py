@@ -37,7 +37,7 @@ def train_ViT(model, train_loader, test_loader, device, model_path, model_name, 
     else:
         criterion_train = AsymmetricMSE(alpha)
 
-    criterion_test = nn.MSELoss()
+    criterion_test = criterion_train
 
     model_config = model.get_config()
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

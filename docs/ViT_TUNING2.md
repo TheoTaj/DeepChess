@@ -69,4 +69,18 @@ I'll train three models with these parameters:
 
 **Results**:
 
+| Model | epochs | test_loss | test_sign_acc | n_params |
+|------:|----------|-----------|---------|----------|
+| ViT1  | 124        | 0.0690       | 0.89     | 3185153  |
+| ViT2  | 123        | 0.0846       | 0.88     | 1071105  |
+| ViT3  | `NOT DONE` | 0.0656       | 0.90     | 9504769  |
+
+Even if ViT3 is not done running, it is already the best. Thus we'll keep this model as the best model for the ViT architecture.
+
+# Asymmetric loss
+
+For the asymmetric loss, I'll run three models with alpha=[1.25,1.5,1.75] (j'ai que 3 jobs de libre vu que ViT3 tourne toujours) with the same parameters as ViT3.
+
+**Results**:
+
 > COMING SOON
