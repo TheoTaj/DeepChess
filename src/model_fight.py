@@ -37,7 +37,9 @@ def play_game(args):
         device=device,
         starting_fen=fen,
     )
+    print(f"  Starting game {game_id} | white=model{white_idx} | depth={depth} | fen={fen}")
     result = game.play_headless(max_moves=200)
+    print(f"  Finished game {game_id} | result={result['result']} | moves={result['n_moves']}")
 
     # Traduit le résultat en termes de model1/model2
     if result['result'] == "draw":

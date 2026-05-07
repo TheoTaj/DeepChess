@@ -214,6 +214,7 @@ class ChessGame:
     def ai_move_headless(self):
         """Synchronous AI move for headless mode."""
         start = time.time()
+        current_depth = self.get_dynamic_depth()
         move, score = get_best_move(
             self.board.fen(), self.current_model(),
             self.device, depth=self.current_depth(),
@@ -274,29 +275,24 @@ class ChessGame:
             self.game_over = True
             reason         = "Insufficient material"
         elif self.board.can_claim_draw():
-            # Détermination de la raison précise
+            # 1. SET THE RESULT (This was missing!)
+            self.result = "draw" 
+            
+            # Determine precise reason for logs/UI
             if self.board.can_claim_threefold_repetition():
                 reason = "Draw claimed: Threefold repetition"
             elif self.board.can_claim_fifty_moves():
                 reason = "Draw claimed: Fifty-move rule"
             else:
-                reason = "Draw claimed (repetition or 50 moves)"
+                reason = "Draw claimed"
 
-            # Mise à jour de l'UI
-            self.status_var.set(reason)
+            if not self.headless:
+                self.status_var.set(reason)
             
-            if self.headless:
-                print(f"  [RESULT] {reason}", flush=True)
                 
             self.game_over = True
-            reason         = "Draw claimed"
         else:
-            return  # partie pas terminée
-
-        if not self.headless:
-            msg = f"{reason} ! {self.result.capitalize()} wins !" if self.result != "draw" \
-                else f"{reason} ! Draw."
-            self.status_var.set(msg)
+            return  # Game continues
 
     # ── Human click ──────────────────────────────────────────────────────────
 
