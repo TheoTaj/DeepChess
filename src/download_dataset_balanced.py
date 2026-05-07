@@ -351,7 +351,7 @@ def load_opening_book_fens(file_path, n=50):
         
         selected_fens = random.sample(unique_fens, n)
         
-        with open("data/opening_book_fens.txt", "w") as f:
+        with open(f"data/opening_book_fens_{n}.txt", "w") as f:
             for fen in selected_fens:
                 f.write(f"{fen}\n")
         
@@ -368,4 +368,4 @@ if __name__ == "__main__":
     #     output_path="data/fighting_fens_2.txt"
     # )
 
-    load_opening_book_fens("data/Book.txt", n=50)
+    load_opening_book_fens("data/Book.txt", n=250)

@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 
 from CNN import ChessCNN
 from minimax import get_best_move
+from ONNX import ONNXModelWrapper
 
 # ── Couleurs ─────────────────────────────────────────────────────────────────
 LIGHT   = "#F0D9B5"
@@ -361,6 +362,7 @@ class ChessGame:
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    print(".PTH")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     MODEL_PATH   = "models/CNN_5M_5.pth"
@@ -375,12 +377,36 @@ if __name__ == "__main__":
     root = tk.Tk()
     ChessGame(
         root,
-        white_model=None,   # None = humain
+        white_model=model_asym,   # None = humain
         black_model=model_sym,
         white_depth=3,
         black_depth=3,
         device=device,
         delay_ms=500,
-        starting_fen="4r3/4k3/8/8/8/3K4/8/8 w - - 0 1"
+        starting_fen=None
     )
     root.mainloop()
+
+# if __name__ == "__main__":
+#     print(".ONNX")
+#     device = torch.device("cpu")
+
+#     MODEL_PATH_SYM  = "models/CNN_SYM.onnx"
+#     MODEL_PATH_ASYM = "models/CNN_ASYM.onnx"
+
+#     # Chargement via le Wrapper
+#     model_sym  = ONNXModelWrapper(MODEL_PATH_SYM)
+#     model_asym = ONNXModelWrapper(MODEL_PATH_ASYM)
+
+#     root = tk.Tk()
+#     ChessGame(
+#         root,
+#         white_model=model_asym,      # Humain
+#         black_model=model_sym, # Ton modèle ONNX
+#         white_depth=3,
+#         black_depth=3,
+#         device=device,         # On garde l'argument pour la forme
+#         delay_ms=500,
+#         starting_fen=None
+#     )
+#     root.mainloop()
