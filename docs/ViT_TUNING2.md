@@ -73,7 +73,7 @@ I'll train three models with these parameters:
 |------:|----------|-----------|---------|----------|
 | ViT1  | 124        | 0.0690       | 0.89     | 3185153  |
 | ViT2  | 123        | 0.0846       | 0.88     | 1071105  |
-| ViT3  | `NOT DONE` | 0.0656       | 0.90     | 9504769  |
+| ViT3  | 99 | 0.0613       | 0.90     | 9504769  |
 
 Even if ViT3 is not done running, it is already the best. Thus we'll keep this model as the best model for the ViT architecture.
 
