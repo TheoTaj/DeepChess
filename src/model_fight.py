@@ -5,59 +5,112 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from game import ChessGame, load_model
 from CNN import ChessCNN
+from ONNX import ONNXModelWrapper
 
 
 # ── Worker function (must be top-level for multiprocessing) ──────────────────
 
+# def play_game(args):
+#     """
+#     Plays a single headless game and returns the result.
+#     Must be a top-level function for multiprocessing.
+#     """
+#     torch.set_num_threads(1)  # Important pour éviter les conflits CPU dans multiprocessing
+#     fen, model1_path, model2_path, white_idx, depth, game_id = args
+
+#     device = torch.device("cpu")  # multiprocessing → CPU par worker
+
+#     model1 = ONNXModelWrapper(model1_path)
+#     model2 = ONNXModelWrapper(model2_path)
+
+#     # white_idx=1 → model1 joue blancs, white_idx=2 → model2 joue blancs
+#     white_model = model1 if white_idx == 1 else model2
+#     black_model = model2 if white_idx == 1 else model1
+
+#     game = ChessGame(
+#         headless=True,
+#         white_model=white_model,
+#         black_model=black_model,
+#         white_depth=depth,
+#         black_depth=depth,
+#         device=device,
+#         starting_fen=fen,
+#     )
+#     print(f"  Starting game {game_id} | white=model{white_idx} | depth={depth} | fen={fen}")
+#     result = game.play_headless(max_moves=200)
+#     print(f"  Finished game {game_id} | result={result['result']} | moves={result['n_moves']}")
+
+#     # Traduit le résultat en termes de model1/model2
+#     if result['result'] == "draw":
+#         winner = "draw"
+#     elif (result['result'] == "white" and white_idx == 1) or \
+#          (result['result'] == "black" and white_idx == 2):
+#         winner = "model1"
+#     else:
+#         winner = "model2"
+
+#     return {
+#         'game_id':   game_id,
+#         'fen':       fen,
+#         'white':     f"model{white_idx}",
+#         'result':    result['result'],   # "white", "black", "draw"
+#         'winner':    winner,             # "model1", "model2", "draw"
+#         'n_moves':   result['n_moves'],
+#     }
+
 def play_game(args):
-    """
-    Plays a single headless game and returns the result.
-    Must be a top-level function for multiprocessing.
-    """
-    torch.set_num_threads(1)  # Important pour éviter les conflits CPU dans multiprocessing
-    fen, model1_cfg, model2_cfg, white_idx, depth, game_id = args
+    # On force l'affichage immédiat pour débugger
+    print(f"--- Worker started for game {args[5]} ---", flush=True)
+    
+    try:
+        torch.set_num_threads(1)
+        fen, model1_path, model2_path, white_idx, depth, game_id = args
+        device = torch.device("cpu")
 
-    device = torch.device("cpu")  # multiprocessing → CPU par worker
+        model1 = ONNXModelWrapper(model1_path)
+        model2 = ONNXModelWrapper(model2_path)
 
-    model1 = load_model(model1_cfg['path'], model1_cfg['conv_filters'],
-                        model1_cfg['fc_layers'], device)
-    model2 = load_model(model2_cfg['path'], model2_cfg['conv_filters'],
-                        model2_cfg['fc_layers'], device)
+        white_model = model1 if white_idx == 1 else model2
+        black_model = model2 if white_idx == 1 else model1
 
-    # white_idx=1 → model1 joue blancs, white_idx=2 → model2 joue blancs
-    white_model = model1 if white_idx == 1 else model2
-    black_model = model2 if white_idx == 1 else model1
+        # ATTENTION ICI : Assure-toi que ChessGame accepte None pour root
+        # ou que les arguments correspondent bien à la définition de ta classe
+        game = ChessGame(
+            root=None, # On passe explicitement None si on est headless
+            white_model=white_model,
+            black_model=black_model,
+            white_depth=depth,
+            black_depth=depth,
+            device=device,
+            starting_fen=fen,
+            headless=True  # Argument nommé
+        )
+        
+        # Petit log pour confirmer l'initialisation
+        print(f"  [Game {game_id}] Initialized. Playing...", flush=True)
+        
+        result = game.play_headless(max_moves=200)
+        
+        # ... (Logique de winner identique) ...
+        
+        print(f"  [Game {game_id}] Done. Result: {result['result']}", flush=True)
+        
+        # (N'oublie pas de recalculer winner ici)
+        winner = "draw" # simplifie pour le test
+        if result['result'] == 'white': winner = 'model1' if white_idx == 1 else 'model2'
+        elif result['result'] == 'black': winner = 'model2' if white_idx == 1 else 'model1'
 
-    game = ChessGame(
-        headless=True,
-        white_model=white_model,
-        black_model=black_model,
-        white_depth=depth,
-        black_depth=depth,
-        device=device,
-        starting_fen=fen,
-    )
-    print(f"  Starting game {game_id} | white=model{white_idx} | depth={depth} | fen={fen}")
-    result = game.play_headless(max_moves=200)
-    print(f"  Finished game {game_id} | result={result['result']} | moves={result['n_moves']}")
+        return {
+            'game_id': game_id, 'fen': fen, 'white': f"model{white_idx}",
+            'result': result['result'], 'winner': winner, 'n_moves': result['n_moves'],
+        }
 
-    # Traduit le résultat en termes de model1/model2
-    if result['result'] == "draw":
-        winner = "draw"
-    elif (result['result'] == "white" and white_idx == 1) or \
-         (result['result'] == "black" and white_idx == 2):
-        winner = "model1"
-    else:
-        winner = "model2"
-
-    return {
-        'game_id':   game_id,
-        'fen':       fen,
-        'white':     f"model{white_idx}",
-        'result':    result['result'],   # "white", "black", "draw"
-        'winner':    winner,             # "model1", "model2", "draw"
-        'n_moves':   result['n_moves'],
-    }
+    except Exception as e:
+        # C'est ÇA qui va te donner la réponse
+        print(f"CRITICAL ERROR in Game {args[5]}: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return None # Ou une structure par défaut
 
 
 # ── Stats ────────────────────────────────────────────────────────────────────
@@ -104,8 +157,6 @@ if __name__ == "__main__":
     parser.add_argument("--model2_path",         type=str,   required=True)
     parser.add_argument("--model1_name",         type=str,   default="Model1")
     parser.add_argument("--model2_name",         type=str,   default="Model2")
-    parser.add_argument("--conv_filters",        type=int,   nargs='+', required=True)
-    parser.add_argument("--fc_layers",           type=int,   nargs='+', required=True)
     parser.add_argument("--depth",               type=int,   default=3)
     parser.add_argument("--n_fens",              type=int,   default=50)
     parser.add_argument("--n_workers",           type=int,   default=4)
@@ -122,14 +173,11 @@ if __name__ == "__main__":
     fens = random.sample(all_fens, min(args.n_fens, len(all_fens)))
     print(f"Loaded {len(fens)} FENs from {args.opening_book}")
 
-    model1_cfg = {'path': args.model1_path, 'conv_filters': args.conv_filters, 'fc_layers': args.fc_layers}
-    model2_cfg = {'path': args.model2_path, 'conv_filters': args.conv_filters, 'fc_layers': args.fc_layers}
-
     # ── Créer les jobs : 2 parties par FEN ───────────────────────────────────
     jobs = []
     for i, fen in enumerate(fens):
-        jobs.append((fen, model1_cfg, model2_cfg, 1, args.depth, f"{i}_m1white"))  # model1 = blancs
-        jobs.append((fen, model1_cfg, model2_cfg, 2, args.depth, f"{i}_m2white"))  # model2 = blancs
+        jobs.append((fen, args.model1_path, args.model2_path, 1, args.depth, f"{i}_m1white"))  # model1 = blancs
+        jobs.append((fen, args.model1_path, args.model2_path, 2, args.depth, f"{i}_m2white"))  # model2 = blancs
 
     print(f"Total games : {len(jobs)}  |  Workers : {args.n_workers}")
 

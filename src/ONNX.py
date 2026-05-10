@@ -4,7 +4,10 @@ import torch
 
 class ONNXModelWrapper:
     def __init__(self, model_path):
-        self.session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = 1
+        options.inter_op_num_threads = 1
+        self.session = ort.InferenceSession(model_path, sess_options=options, providers=['CPUExecutionProvider'])
         self.input_name = self.session.get_inputs()[0].name
 
     def __call__(self, x):
