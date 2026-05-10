@@ -83,4 +83,8 @@ For the asymmetric loss, I'll run three models with alpha=[1.25,1.5,1.75] (j'ai 
 
 **Results**:
 
-> COMING SOON
+| Model | alpha |epochs | test_loss | test_sign_acc |
+|------:|-----|----------|-----------|---------|
+| `ViT_ASYM_1` |1.25 | 112        | 0.0671       | `0.90304`     |
+| ViT_ASYM_2 | 1.5| 86        | 0.0757       | 0.90171     | 
+| ViT_ASYM_3  |1.75| 99 | 0.0828       | 0.90267     |
