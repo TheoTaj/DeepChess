@@ -132,7 +132,8 @@ def attention_to_colors(board_8x8, query_sq):
         fill[sq] = mcolors.to_hex(rgba)
 
     # Highlight query square in red
-    fill[query_sq] = '#FF0000'
+    if query_sq is not None:
+        fill[query_sq] = '#FF0000'
     return fill
 
 def draw_chessboard_heatmap(board_8x8, query_sq, fen, layer, head,
@@ -141,21 +142,33 @@ def draw_chessboard_heatmap(board_8x8, query_sq, fen, layer, head,
     fill  = attention_to_colors(board_8x8, query_sq)
 
     svg_data = chess.svg.board(board=board, fill=fill, size=400)
+    if query_sq is not None:
+        sq_file = chess.square_file(query_sq)
+        sq_rank = chess.square_rank(query_sq)
+        square_size = 400 / 8
+        x = sq_file * square_size
+        y = (7 - sq_rank) * square_size
+        border_svg = (
+            f'<rect x="{x}" y="{y}" width="{square_size}" height="{square_size}" '
+            f'fill="none" stroke="red" stroke-width="3"/>'
+        )
+        svg_data = svg_data.replace('</svg>', f'{border_svg}</svg>')
     png_data = svg2png(bytestring=svg_data.encode('utf-8'), scale=2.0)
     img = mpimg.imread(BytesIO(png_data), format='png')
 
     ax.imshow(img)
     ax.axis('off')
 
+    query_str = sq_name(query_sq) if query_sq is not None else "all"
     if average_layers and average_heads:
-        title = f"All layers & heads avg | Query: {sq_name(query_sq)}"
+        title = f"All layers & heads avg | Query: {query_str}"
     elif average_layers:
-        title = f"All layers avg, Head {head} | Query: {sq_name(query_sq)}"
+        title = f"All layers avg, Head {head} | Query: {query_str}"
     elif average_heads:
-        title = f"Layer {layer}, All heads avg | Query: {sq_name(query_sq)}"
+        title = f"Layer {layer}, All heads avg | Query: {query_str}"
     else:
-        title = f"Layer {layer}, Head {head} | Query: {sq_name(query_sq)}"
-
+        title = f"Layer {layer}, Head {head} | Query: {query_str}"
+        
     flat = board_8x8.flatten()
     norm = mcolors.Normalize(vmin=flat.min(), vmax=flat.max())
     sm = cm.ScalarMappable(cmap=COLORMAP, norm=norm)
@@ -337,6 +350,35 @@ def plot_avg_layers_all_heads(attn_weights, query_sq, fen, save_dir="fig/attenti
     plt.close(fig)
     print(f"Saved: {path}")
 
+def plot_global_attention(attn_weights, fen, save_dir="fig/attention_plots"):
+    """Average attention over all query squares — global view comparable to GradCAM."""
+    os.makedirs(save_dir, exist_ok=True)
+    n_layers = len(attn_weights)
+    fig, axes = plt.subplots(2, n_layers // 2, figsize=(4 * n_layers // 2, 9))
+    axes = axes.flatten()
+
+    for layer in range(n_layers):
+        # Average over all 64 query squares
+        maps = []
+        for sq in range(64):
+            m = get_attention_map(attn_weights, sq, layer, head=0,
+                                  average_heads=True, average_layers=False)
+            maps.append(m)
+        global_map = np.stack(maps).mean(axis=0)  # [8, 8]
+
+        # query_sq=None signals no square to highlight — pass a dummy value
+        draw_chessboard_heatmap(global_map, query_sq=None, fen=fen, layer=layer,
+                                 head=0, average_heads=True, average_layers=False,
+                                 ax=axes[layer])
+        axes[layer].set_title(f"Layer {layer} — global avg")
+
+    plt.suptitle("Global attention (avg over all query squares)", fontsize=14)
+    plt.tight_layout()
+    path = os.path.join(save_dir, f"global_attention_all_layers.png")
+    fig.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Saved: {path}")
+
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -365,9 +407,11 @@ if __name__ == "__main__":
     # --- Uncomment to explore further ---
     # plot_all_heads(attn_weights, QUERY_SQ, layer=LAYER, fen=fen)
     # plot_all_layers(attn_weights, QUERY_SQ, head=HEAD, fen=fen)
-    plot_all_heads_all_layers(attn_weights, QUERY_SQ, fen)
-    plot_avg_heads_all_layers(attn_weights, QUERY_SQ, fen)
-    plot_avg_layers_all_heads(attn_weights, QUERY_SQ, fen)
+    
+    # plot_all_heads_all_layers(attn_weights, QUERY_SQ, fen)
+    # plot_avg_heads_all_layers(attn_weights, QUERY_SQ, fen)
+    # plot_avg_layers_all_heads(attn_weights, QUERY_SQ, fen)
+    plot_global_attention(attn_weights, fen)
 
 # if __name__ == "__main__":
 #     device = 'cuda' if torch.cuda.is_available() else 'cpu'
