@@ -47,7 +47,7 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x):
         normed = self.norm1(x)
-        att_output, _ = self.attention(normed, normed, normed)
+        att_output, _ = self.attention(normed, normed, normed, average_attn_weights=False)
         x = att_output + x
         x = self.mlp(self.norm2(x)) + x
         return x
