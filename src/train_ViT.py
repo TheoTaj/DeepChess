@@ -24,6 +24,9 @@ torch.backends.cudnn.benchmark = False
 def train_ViT(model, train_loader, test_loader, device, model_path, model_name, n_epochs=100, lr=0.01, alpha=1.0, 
             patience=10, scheduler_factor=1, scheduler_patience=5, weight_decay=1e-4, warmup_epochs=5, wandb_run_id=None):
     
+    if str(device) == "cpu":
+        print("Not connected to GPU, not going to train.")
+        return
     if str(device) == "cuda" and not torch.cuda.is_available():
         print("CUDA is not available. No training")
         return
@@ -34,12 +37,14 @@ def train_ViT(model, train_loader, test_loader, device, model_path, model_name, 
     else:
         criterion_train = AsymmetricMSE(alpha)
 
-    criterion_test = nn.MSELoss() # for evaluation we want to have comparable metrics.
+    criterion_test = criterion_train
 
     model_config = model.get_config()
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     train_config = {
         "architecture": "ViT",
+        "total_params": total_params,
         "lr": lr,
         "n_epochs": n_epochs,
         "warmup_epochs": warmup_epochs,
@@ -210,6 +215,7 @@ if __name__== "__main__":
     parser.add_argument("--patience", type=int, required=True, help="Early stopping patience")
     parser.add_argument("--batch_size", type=int, required=True, help="Batch size for training")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to the parquet dataset")
+    parser.add_argument("--K", type=float, required=True, help="Scaling factor for Centipawns (y = tanh(cp/K))")
 
     parser.add_argument("--embed_dim", type=int, required=True, help="Dimension of the embedding space")
     parser.add_argument("--n_blocks", type=int, required=True, help="Number of transformer blocks")
@@ -227,6 +233,7 @@ if __name__== "__main__":
     config = {
         "epochs": args.epochs,
         "warmup_epochs": args.warmup_epochs,
+        "K": args.K,
         "lr": args.lr,
         "alpha": args.alpha,
         "batch_size": args.batch_size,
@@ -247,20 +254,20 @@ if __name__== "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on: {device}")
 
-    train_set = ChessDataset(parquet_path=config["parquet_path"], train=True)
-    test_set = ChessDataset(parquet_path=config["parquet_path"], train=False)
+    train_set = ChessDataset(parquet_path=config["parquet_path"], K=config["K"], train=True)
+    test_set = ChessDataset(parquet_path=config["parquet_path"], K=config["K"], train=False)
 
     train_loader = DataLoader(
         train_set, 
         batch_size=config["batch_size"], 
         shuffle=True, 
-        num_workers=2
+        num_workers=8
     )
     test_loader = DataLoader(
         test_set, 
         batch_size=config["batch_size"], 
         shuffle=False, 
-        num_workers=2
+        num_workers=8
     )
 
     model = ChessViT(
