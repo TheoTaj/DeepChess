@@ -32,3 +32,27 @@ In the file, we detail the process of comparing our 4 final models by making eac
 | CNN_ASYM | 32 / 50 | 35 / 50 | 67 / 100 |
 | Draws |  |  | 15 / 100 |
 
+## 4. ViT_ASYM vs CNN_ASYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| ViT_ASYM | 9 / 50 | 7 / 50 | 16 / 100 |
+| CNN_ASYM | 36 / 50 | 33 / 50 | 69 / 100 |
+| Draws |  |  | 15 / 100 |
+
+## 5. ViT_ASYM vs CNN_SYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| ViT_ASYM | 7 / 50 | 6 / 50 | 13 / 100 |
+| CNN_SYM | 32 / 50 | 33 / 50 | 65 / 100 |
+| Draws |  |  | 22 / 100 |
+
+## 6. ViT_ASYM vs ViT_SYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| ViT_ASYM | 27 / 50 | 20 / 50 | 47 / 100 |
+| ViT_SYM | 16 / 50 | 18 / 50 | 34 / 100 |
+| Draws |  |  | 19 / 100 |
+
