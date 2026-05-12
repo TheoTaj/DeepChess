@@ -30,17 +30,26 @@ class StockfishPlayer:
         if elo is not None:
             self.engine.configure({
                 "UCI_LimitStrength": True,
-                "UCI_Elo": elo,
+                "UCI_Elo": max(1320, elo),
+            })
+        else:
+            self.engine.configure({
+                "Skill Level": 0,
             })
         self.time_limit = time_limit
         self.depth = depth
 
     def get_move(self, board: chess.Board):
         """Returns (move, score). Score normalised to [-1, 1] from white's perspective."""
-        result = self.engine.play(board, chess.engine.Limit(time=self.time_limit, depth=self.depth))
+        result = self.engine.play(
+            board, 
+            chess.engine.Limit(time=self.time_limit, depth=self.depth),
+            info=chess.engine.Info.SCORE
+            )
         try:
-            info  = self.engine.analyse(board, chess.engine.Limit(time=0.05))
-            cp    = info["score"].white().score(mate_score=10000)
+            # info  = self.engine.analyse(board, chess.engine.Limit(time=0.05))
+            # cp    = info["score"].white().score(mate_score=10000)
+            cp = result.info["score"].white().score(mate_score=10000)
             score = max(-1.0, min(1.0, cp / 10000.0))
         except Exception:
             score = 0.0
