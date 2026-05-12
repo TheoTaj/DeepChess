@@ -56,3 +56,37 @@ In the file, we detail the process of comparing our 4 final models by making eac
 | ViT_SYM | 16 / 50 | 18 / 50 | 34 / 100 |
 | Draws |  |  | 19 / 100 |
 
+
+# Matches against Stockfish
+
+## 1. Stockfish vs CNN_SYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| Stockfish | 15 / 50  | 3 / 50  | 18 / 100|
+| CNN_SYM | 18 / 50  | 10 / 50  | 28 / 100|
+| Draws | | | 54 / 100 |
+
+## 2. Stockfish vs CNN_ASYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| Stockfish | -- / 50  | -- / 50  | -- / 100|
+| CNN_ASYM | -- / 50  | -- / 50  | -- / 100|
+| Draws | | | -- / 100 |
+
+## 3. Stockfish vs ViT_SYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| Stockfish | -- / 50  | -- / 50  | -- / 100|
+| ViT_SYM | -- / 50  | -- / 50  | -- / 100|
+| Draws | | | -- / 100 |
+
+## 4. Stockfish vs ViT_ASYM
+
+| Model | As White | As Black | Total |
+|---|---|---|---|
+| Stockfish | -- / 50  | -- / 50  | -- / 100|
+| ViT_ASYM | -- / 50  | -- / 50  | -- / 100|
+| Draws | | | -- / 100 |

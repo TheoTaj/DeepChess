@@ -1,4 +1,5 @@
 import chess
+import chess.engine
 import torch
 import tkinter as tk
 import threading
@@ -16,6 +17,46 @@ SELECT  = "#7FC97F"
 LEGAL   = "#7EC8E3"
 
 SQUARE_SIZE = 80
+
+# ── Stockfish wrapper ────────────────────────────────────────────────────────
+
+class StockfishPlayer:
+    """
+    Wraps Stockfish so it can be used in place of an ONNX model inside ChessGame.
+    Bypasses minimax entirely.
+    """
+    def __init__(self, stockfish_path: str, elo: int = None, time_limit: float = 0.1, depth: int = None):
+        self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+        if elo is not None:
+            self.engine.configure({
+                "UCI_LimitStrength": True,
+                "UCI_Elo": max(1320, elo),
+            })
+        else:
+            self.engine.configure({
+                "Skill Level": 0,
+            })
+        self.time_limit = time_limit
+        self.depth = depth
+
+    def get_move(self, board: chess.Board):
+        """Returns (move, score). Score normalised to [-1, 1] from white's perspective."""
+        result = self.engine.play(
+            board, 
+            chess.engine.Limit(time=self.time_limit, depth=self.depth),
+            info=chess.engine.Info.SCORE
+            )
+        try:
+            # info  = self.engine.analyse(board, chess.engine.Limit(time=0.05))
+            # cp    = info["score"].white().score(mate_score=10000)
+            cp = result.info["score"].white().score(mate_score=10000)
+            score = max(-1.0, min(1.0, cp / 10000.0))
+        except Exception:
+            score = 0.0
+        return result.move, score
+
+    def close(self):
+        self.engine.quit()
 
 
 def load_model(model_path, conv_filters, fc_layers, device):
@@ -216,11 +257,17 @@ class ChessGame:
         """Synchronous AI move for headless mode."""
         start = time.time()
         current_depth = self.get_dynamic_depth()
-        move, score = get_best_move(
-            self.board.fen(), self.current_model(),
-            self.device, depth=self.current_depth(),
-            tt=self.tt
-        )
+
+        current = self.current_model()
+        if isinstance(current, StockfishPlayer):
+            move, score = current.get_move(self.board)
+        else:
+            move, score = get_best_move(
+                self.board.fen(), current,
+                self.device, depth=self.current_depth(),
+                tt=self.tt
+            )
+        
         elapsed = time.time() - start
         self.move_history.append({
             'move':    move.uci() if move else None,
@@ -233,11 +280,15 @@ class ChessGame:
     def ai_move(self):
         start = time.time()
         current_depth = self.get_dynamic_depth()
-        move, score = get_best_move(
-            self.board.fen(), self.current_model(),
-            self.device, depth=current_depth,
-            tt=self.tt
-        )
+        current = self.current_model()
+        if isinstance(current, StockfishPlayer):
+            move, score = current.get_move(self.board)
+        else:
+            move, score = get_best_move(
+                self.board.fen(), current,
+                self.device, depth=self.current_depth(),
+                tt=self.tt
+            )
         elapsed = time.time() - start
         self.root.after(0, lambda: self.apply_move(move, score, elapsed))
 
