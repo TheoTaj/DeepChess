@@ -83,7 +83,8 @@ class ChessViT(nn.Module):
         )
 
         self.cls = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_emb = nn.Parameter(torch.zeros(1, self.patch_emb.n_patches + 1, embed_dim))
+        # Random initialization
+        self.pos_emb = nn.Parameter(torch.randn(1, self.patch_emb.n_patches + 1, embed_dim) * 0.02)
 
         self.blocks = nn.Sequential(*[
             TransformerBlock(
