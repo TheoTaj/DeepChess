@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
+import math
 
 from ViT import ChessViT
 from dataset import fen_to_tensor, ChessDataset
@@ -137,9 +138,15 @@ def attention_to_colors(board_8x8, query_sq):
     return fill
 
 def draw_chessboard_heatmap(board_8x8, query_sq, fen, layer, head,
-                             average_heads, average_layers, ax):
+                             average_heads, average_layers, ax, norm=None, show_colorbar=True):
     board = chess.Board(fen)
-    fill  = attention_to_colors(board_8x8, query_sq)
+    
+    # Use provided norm if given, otherwise compute a local one (original behaviour)
+    if norm is None:
+        flat = board_8x8.flatten()
+        norm = mcolors.Normalize(vmin=flat.min(), vmax=flat.max())
+    
+    fill = attention_to_colors_with_norm(board_8x8, query_sq, norm)
 
     svg_data = chess.svg.board(board=board, fill=fill, size=400)
     if query_sq is not None:
@@ -168,12 +175,11 @@ def draw_chessboard_heatmap(board_8x8, query_sq, fen, layer, head,
         title = f"Layer {layer}, All heads avg | Query: {query_str}"
     else:
         title = f"Layer {layer}, Head {head} | Query: {query_str}"
-        
-    flat = board_8x8.flatten()
-    norm = mcolors.Normalize(vmin=flat.min(), vmax=flat.max())
+
     sm = cm.ScalarMappable(cmap=COLORMAP, norm=norm)
     sm.set_array([])
-    plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+    if show_colorbar:
+        plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
     ax.set_title(title)
 
 def plot_all_heads(attn_weights, query_sq, layer, fen):
@@ -224,6 +230,21 @@ def plot_all_heads_all_layers(attn_weights, query_sq, fen, save_dir="fig/attenti
         fig.savefig(path, dpi=150, bbox_inches='tight')
         plt.close(fig)
         print(f"Saved: {path}")
+
+def attention_to_colors_with_norm(board_8x8, query_sq, norm):
+    """Like attention_to_colors but accepts an external norm for shared scaling."""
+    cmap = COLORMAP
+    fill = {}
+    for sq in chess.SQUARES:
+        rank = chess.square_rank(sq)
+        file = chess.square_file(sq)
+        weight = board_8x8[rank, file]
+        rgba = cmap(norm(weight))
+        fill[sq] = mcolors.to_hex(rgba)
+    if query_sq is not None:
+        fill[query_sq] = '#FF0000'
+    return fill
+
 
 def make_rook_mask(sq):
     rank, file = sq // 8, sq % 8
@@ -351,51 +372,286 @@ def plot_avg_layers_all_heads(attn_weights, query_sq, fen, save_dir="fig/attenti
     print(f"Saved: {path}")
 
 def plot_global_attention(attn_weights, fen, save_dir="fig/attention_plots"):
-    """Average attention over all query squares — global view comparable to GradCAM."""
+    """Average attention over all query squares — global view comparable to GradCAM.
+    Uses a shared colorbar across all layers for honest cross-layer comparison.
+    """
     os.makedirs(save_dir, exist_ok=True)
     n_layers = len(attn_weights)
-    fig, axes = plt.subplots(2, n_layers // 2, figsize=(4 * n_layers // 2, 9))
-    axes = axes.flatten()
 
+    # --- Pass 1: compute all maps to find the global vmin/vmax ---
+    global_maps = []
     for layer in range(n_layers):
-        # Average over all 64 query squares
         maps = []
         for sq in range(64):
             m = get_attention_map(attn_weights, sq, layer, head=0,
                                   average_heads=True, average_layers=False)
             maps.append(m)
-        global_map = np.stack(maps).mean(axis=0)  # [8, 8]
+        global_maps.append(np.stack(maps).mean(axis=0))  # [8, 8]
 
-        # query_sq=None signals no square to highlight — pass a dummy value
+    all_values = np.concatenate([m.flatten() for m in global_maps])
+    shared_norm = mcolors.Normalize(vmin=all_values.min(), vmax=all_values.max())
+
+    # --- Pass 2: plot with the shared norm ---
+    fig, axes = plt.subplots(2, n_layers // 2, figsize=(4 * n_layers // 2, 9))
+    axes = axes.flatten()
+
+    for layer, global_map in enumerate(global_maps):
         draw_chessboard_heatmap(global_map, query_sq=None, fen=fen, layer=layer,
                                  head=0, average_heads=True, average_layers=False,
-                                 ax=axes[layer])
-        axes[layer].set_title(f"Layer {layer} — global avg")
+                                 ax=axes[layer], norm=shared_norm, show_colorbar=False)
+        axes[layer].set_title(f"Layer {layer}")
 
-    plt.suptitle("Global attention (avg over all query squares)", fontsize=14)
+    # plt.suptitle("Global attention (avg over all query squares)", fontsize=14)
     plt.tight_layout()
-    path = os.path.join(save_dir, f"global_attention_all_layers.png")
+    path = os.path.join(save_dir, "global_attention_all_layers_black.png")
     fig.savefig(path, dpi=150, bbox_inches='tight')
     plt.close(fig)
     print(f"Saved: {path}")
 
-if __name__ == "__main__":
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+def compute_and_save_attention(fen, model, device, save_dir="fig/attention_cache"):
+    """
+    Run a forward pass for the given FEN and save all attention weights to disk.
 
-    model = load_model(MODEL_PATH, device)
+    Saves:
+      - attn_weights: raw tensors [1, n_heads, N, N] for each layer
+      - fen: the position string
+      - model config: n_layers, n_heads, N
+
+    Args:
+        fen      : FEN string of the position to analyse
+        model    : loaded ChessViT (already eval()'d and on device)
+        device   : torch device
+        save_dir : directory where the .pt file will be written
+
+    Returns:
+        save_path : path to the saved file
+    """
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    # --- Forward pass with hooks ---
     attn_weights, handles = register_hooks(model)
 
-    fen = "rn2kb1r/pp3ppp/4p1qn/1p4B1/2B5/3P2QP/PPP2PP1/R3K2R w KQkq - 0 1"
-    # fen = "8/8/8/8/4R3/8/8/8 w - - 0 1"
-    # fen = "r3k2r/ppp2ppp/8/8/4R3/8/PPP2PPP/R3K2R w KQkq - 0 1"
-    tensor_input = fen_to_tensor(fen)
-    x = torch.from_numpy(tensor_input).float().unsqueeze(0).to(device)  # [1, 18, 8, 8]
+    x = torch.from_numpy(fen_to_tensor(fen)).float().unsqueeze(0).to(device)
     with torch.no_grad():
         model(x)
 
     remove_hooks(handles)
 
-    # --- Single map ---
+    # --- Build payload ---
+    # Convert each tensor to CPU numpy to make the file self-contained
+    # (no torch version dependency issues when reloading later)
+    attn_np = {
+        layer_idx: tensor.cpu().numpy()          # [1, n_heads, N, N]
+        for layer_idx, tensor in attn_weights.items()
+    }
+
+    n_layers = len(attn_np)
+    n_heads  = attn_np[0].shape[1]
+    N        = attn_np[0].shape[2]   # sequence length (64 squares + 1 CLS = 65)
+
+    payload = {
+        "fen"      : fen,
+        "n_layers" : n_layers,
+        "n_heads"  : n_heads,
+        "N"        : N,
+        "attn"     : attn_np,         # dict {int -> np.ndarray [1, n_heads, N, N]}
+    }
+
+    # Use a filename derived from the FEN (sanitised) so different positions
+    # don't overwrite each other
+    safe_fen = fen.split(" ")[0].replace("/", "-")   # keep only the board part
+    save_path = os.path.join(save_dir, f"attn_{safe_fen}.pt")
+    torch.save(payload, save_path)
+    print(f"Saved attention weights → {save_path}")
+    print(f"  layers={n_layers}, heads={n_heads}, seq_len={N}")
+
+    return save_path
+
+
+def load_attention(save_path):
+    """
+    Load attention weights previously saved by compute_and_save_attention().
+
+    Returns:
+        attn_weights : dict {layer_idx (int) -> torch.Tensor [1, n_heads, N, N]}
+                       Same format as the live attn_weights dict produced by
+                       register_hooks(), so every existing plot function works
+                       unchanged.
+        fen          : FEN string of the saved position
+        meta         : dict with n_layers, n_heads, N
+    """
+    payload = torch.load(save_path, map_location="cpu", weights_only=False)
+
+    # Restore as torch tensors so get_attention_map() keeps working as-is
+    attn_weights = {
+        layer_idx: torch.from_numpy(arr)
+        for layer_idx, arr in payload["attn"].items()
+    }
+
+    fen  = payload["fen"]
+    meta = {k: payload[k] for k in ("n_layers", "n_heads", "N")}
+
+    print(f"Loaded attention weights ← {save_path}")
+    print(f"  FEN    : {fen}")
+    print(f"  layers={meta['n_layers']}, heads={meta['n_heads']}, seq_len={meta['N']}")
+
+    return attn_weights, fen, meta
+
+def plot_global_attention_per_head(attn_weights, fen, save_dir="fig/attention_plots"):
+    """
+    For each (layer, head) pair, compute the attention map averaged over all
+    64 query squares, then plot the full 8-layer × 8-head grid with a single
+    shared colormap scale.
+
+    Layout: 8 rows (layers, top=0) × 8 columns (heads, left=0).
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    n_layers = len(attn_weights)
+    n_heads  = attn_weights[0].shape[1]
+
+    # --- Pass 1: compute all 64 maps and find the global vmin/vmax ---
+    maps = {}                          # (layer, head) -> np.ndarray [8, 8]
+    for layer in range(n_layers):
+        for head in range(n_heads):
+            avg = np.stack([
+                get_attention_map(attn_weights, sq, layer, head,
+                                  average_heads=False, average_layers=False)
+                for sq in range(64)
+            ]).mean(axis=0)            # [8, 8]
+            maps[(layer, head)] = avg
+
+    all_values  = np.concatenate([m.flatten() for m in maps.values()])
+    shared_norm = mcolors.Normalize(vmin=all_values.min(), vmax=all_values.max())
+
+    # --- Pass 2: plot ---
+    fig, axes = plt.subplots(
+        n_layers, n_heads,
+        figsize=(2.5 * n_heads, 2.5 * n_layers)
+    )
+
+    for layer in range(n_layers):
+        for head in range(n_heads):
+            ax = axes[layer][head]
+            draw_chessboard_heatmap(
+                maps[(layer, head)],
+                query_sq=None,          # no red square — we averaged over all
+                fen=fen,
+                layer=layer, head=head,
+                average_heads=False, average_layers=False,
+                ax=ax,
+                norm=shared_norm,
+                show_colorbar=False,
+            )
+            ax.set_title(f"L{layer} H{head}", fontsize=7)
+
+    # Row and column labels
+    for layer in range(n_layers):
+        axes[layer][0].set_ylabel(f"Layer {layer}", fontsize=8)
+    for head in range(n_heads):
+        axes[0][head].set_xlabel(f"Head {head}", fontsize=8)
+        axes[0][head].xaxis.set_label_position("top")
+
+    # Single shared colorbar on the right
+    sm = cm.ScalarMappable(cmap=COLORMAP, norm=shared_norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=axes, fraction=0.01, pad=0.02)
+
+    plt.suptitle("Global attention per head (avg over all 64 query squares)", fontsize=13)
+    plt.tight_layout()
+
+    path = os.path.join(save_dir, "global_attention_per_head.png")
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {path}")
+
+def plot_global_attention_selected_heads(attn_weights, fen, selected_heads,
+                                         save_dir="fig/attention_plots"):
+    os.makedirs(save_dir, exist_ok=True)
+
+    # --- Pass 1: compute query-averaged map for each requested (layer, head) ---
+    maps = {}
+    for (layer, head) in selected_heads:
+        maps[(layer, head)] = np.stack([
+            get_attention_map(attn_weights, sq, layer, head,
+                              average_heads=False, average_layers=False)
+            for sq in range(64)
+        ]).mean(axis=0)
+
+    all_values  = np.concatenate([m.flatten() for m in maps.values()])
+    shared_norm = mcolors.Normalize(vmin=all_values.min(), vmax=all_values.max())
+
+    # --- Pass 2: plot ---
+    n      = len(selected_heads)
+    n_cols = min(n, 4)
+    n_rows = math.ceil(n / n_cols)
+
+    plt.rcParams["font.family"] = "DejaVu Sans"
+
+    fig, axes = plt.subplots(n_rows, n_cols,
+                             figsize=(2.5 * n_cols, 2.5 * n_rows),
+                             squeeze=False,
+                             layout="constrained")
+
+    fig.patch.set_alpha(0)  # transparent background — let Typst/paper show through
+
+    for idx, (layer, head) in enumerate(selected_heads):
+        ax = axes[idx // n_cols][idx % n_cols]
+        draw_chessboard_heatmap(
+            maps[(layer, head)],
+            query_sq=None,
+            fen=fen,
+            layer=layer, head=head,
+            average_heads=False, average_layers=False,
+            ax=ax,
+            norm=shared_norm,
+            show_colorbar=False,
+        )
+        ax.set_title(f"Layer {layer} — Head {head}", fontsize=7)
+
+    for idx in range(len(selected_heads), n_rows * n_cols):
+        axes[idx // n_cols][idx % n_cols].set_visible(False)
+
+    sm = cm.ScalarMappable(cmap=COLORMAP, norm=shared_norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=axes, fraction=0.015, pad=0.01)
+
+    path = os.path.join(save_dir, "global_attention_selected_heads.png")
+    fig.savefig(path, dpi=300, bbox_inches="tight", transparent=True)
+    plt.close(fig)
+    print(f"Saved: {path}")
+
+if __name__ == "__main__":
+    save_path = "fig/attention_cache/attn_rn2kb1r-pp3ppp-4p1qn-1p4B1-2B5-3P2QP-PPP2PP1-R3K2R.pt"
+    attn_weights, fen, meta = load_attention(save_path)
+
+    # heads = [(1,0), (0,3), (1,3),(1,4),(0,4),(1,7),(5,3),(5,2),(4,3),(5,4),(5,5),(4,5),(6,1),(6,7)]
+    heads = [(1,3),(1,4),(5,3)]
+
+    plot_global_attention_selected_heads(attn_weights, fen, heads)
+
+
+# if __name__ == "__main__":
+#     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+#     model = load_model(MODEL_PATH, device)
+    
+#     fen = "rn2kb1r/pp3ppp/4p1qn/1p4B1/2B5/3P2QP/PPP2PP1/R3K2R w KQkq - 0 1"
+#     compute_and_save_attention(fen, model, device)
+
+    # attn_weights, handles = register_hooks(model)
+
+    # # fen = "8/8/8/8/4R3/8/8/8 w - - 0 1"
+    # # fen = "r3k2r/ppp2ppp/8/8/4R3/8/PPP2PPP/R3K2R w KQkq - 0 1"
+    # tensor_input = fen_to_tensor(fen)
+    # x = torch.from_numpy(tensor_input).float().unsqueeze(0).to(device)  # [1, 18, 8, 8]
+    # with torch.no_grad():
+    #     model(x)
+
+    # remove_hooks(handles)
+
+    # # --- Single map ---
     # fig, ax = plt.subplots(figsize=(5, 5))
     # board = get_attention_map(attn_weights, QUERY_SQ, LAYER, HEAD,
     #                           AVERAGE_HEADS, AVERAGE_LAYERS)
@@ -411,7 +667,7 @@ if __name__ == "__main__":
     # plot_all_heads_all_layers(attn_weights, QUERY_SQ, fen)
     # plot_avg_heads_all_layers(attn_weights, QUERY_SQ, fen)
     # plot_avg_layers_all_heads(attn_weights, QUERY_SQ, fen)
-    plot_global_attention(attn_weights, fen)
+    # plot_global_attention(attn_weights, fen)
 
 # if __name__ == "__main__":
 #     device = 'cuda' if torch.cuda.is_available() else 'cpu'

@@ -17,4 +17,4 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate /home/adelandsheere/anaconda3/envs/deepchess
 
 # Run your Python script
-python src/viz_attention.py
+python src/gradcam.py

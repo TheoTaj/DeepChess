@@ -94,17 +94,17 @@ def compute_gradcam(model, x, target_layer_idx):
 
     return cam
 
-def draw_gradcam(cam_8x8, fen, layer_idx, ax):
-    """Reuses the same chess SVG rendering as viz_attention.py."""
+def draw_gradcam(cam_8x8, fen, layer_idx, ax, norm=None, show_colorbar=False):
     board = chess.Board(fen)
 
-    cmap = COLORMAP
-    norm = mcolors.Normalize(vmin=cam_8x8.min(), vmax=cam_8x8.max())
+    if norm is None:
+        norm = mcolors.Normalize(vmin=cam_8x8.min(), vmax=cam_8x8.max())
+
     fill = {}
     for sq in chess.SQUARES:
         rank = chess.square_rank(sq)
         file = chess.square_file(sq)
-        rgba = cmap(norm(cam_8x8[rank, file]))
+        rgba = COLORMAP(norm(cam_8x8[rank, file]))
         fill[sq] = mcolors.to_hex(rgba)
 
     svg_data = chess.svg.board(board=board, fill=fill, size=400)
@@ -113,23 +113,39 @@ def draw_gradcam(cam_8x8, fen, layer_idx, ax):
 
     ax.imshow(img)
     ax.axis('off')
-    ax.set_title(f"GradCAM — Conv layer {layer_idx}")
 
-    sm = cm.ScalarMappable(cmap=COLORMAP, norm=norm)
-    sm.set_array([])
-    plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+    if show_colorbar:
+        sm = cm.ScalarMappable(cmap=COLORMAP, norm=norm)
+        sm.set_array([])
+        plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
 
 def plot_all_layers_gradcam(model, x, fen, save_dir="fig/gradcam"):
     """Plot GradCAM for all 3 conv layers side by side."""
     n_layers = len(get_conv_layers(model))
-    fig, axes = plt.subplots(1, n_layers, figsize=(6 * n_layers, 6))
-    for i, ax in enumerate(axes):
-        cam = compute_gradcam(model, x, target_layer_idx=i)
-        draw_gradcam(cam, fen, i, ax)
-    plt.suptitle("GradCAM — all conv layers", fontsize=14)
-    plt.tight_layout()
-    save_plot(fig, "gradcam_all_layers")
 
+    # --- Pass 1: compute all maps and find global vmin/vmax ---
+    cams = [compute_gradcam(model, x, target_layer_idx=i) for i in range(n_layers)]
+    all_values  = np.concatenate([c.flatten() for c in cams])
+    shared_norm = mcolors.Normalize(vmin=all_values.min(), vmax=all_values.max())
+
+    # --- Pass 2: plot ---
+    fig, axes = plt.subplots(1, n_layers,
+                             figsize=(2.5 * n_layers, 2.5),
+                             layout="constrained")
+    fig.patch.set_alpha(0)
+
+    for i, ax in enumerate(axes):
+        draw_gradcam(cams[i], fen, i, ax, norm=shared_norm)
+        ax.set_title(f"Layer {i}", fontsize=7)
+
+    sm = cm.ScalarMappable(cmap=COLORMAP, norm=shared_norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=axes, fraction=0.015, pad=0.01)
+
+    path = os.path.join(save_dir, "gradcam_all_layers.png")
+    fig.savefig(path, dpi=300, bbox_inches="tight", transparent=True)
+    plt.close(fig)
+    print(f"Saved: {path}")
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -139,11 +155,11 @@ if __name__ == "__main__":
     x = torch.from_numpy(fen_to_tensor(fen)).float().unsqueeze(0).to(device)
 
     # Single layer
-    fig, ax = plt.subplots(figsize=(5, 5))
-    cam = compute_gradcam(model, x, target_layer_idx=LAYER)
-    draw_gradcam(cam, fen, LAYER, ax)
-    plt.tight_layout()
-    save_plot(fig, f"gradcam_layer{LAYER}")
+    # fig, ax = plt.subplots(figsize=(5, 5))
+    # cam = compute_gradcam(model, x, target_layer_idx=LAYER)
+    # draw_gradcam(cam, fen, LAYER, ax)
+    # plt.tight_layout()
+    # save_plot(fig, f"gradcam_layer{LAYER}")
 
     # All layers side by side
     plot_all_layers_gradcam(model, x, fen)

@@ -25,3 +25,6 @@ src/grid_search.txt
 
 *.db
 *.out
+*.pt
+
+Stockfish-sf_17/
