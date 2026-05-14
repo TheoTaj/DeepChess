@@ -243,92 +243,116 @@ def balance_dataset_from_parquet(
     df_out.to_parquet(full_path, index=False, compression='snappy')
     print(f"\nSaved → {full_path}")
 
-
-def analyze_dataset(parquet_path, K=750.0, sample_size=None):
+def generate_poster_dataset_plots(parquet_path, K=750.0, path="fig/distribution.png", sample_size=None):
     """
-    Loads a parquet file and displays:
-    - Distribution of raw cp values
-    - Distribution of normalized values (tanh(cp/K))
-    - Distribution of material (game phase)
-
-    Args:
-        parquet_path (str) : Path to the parquet file.
-        K (float)          : Normalization constant for tanh(cp / K).
-        sample_size (int)  : If set, only sample N rows (faster on large datasets).
+    Generates a high-quality figure for the poster containing:
+    - Normalized target distribution (tanh(cp/K))
+    - Game phase distribution (bar chart)
     """
     print(f"Loading {parquet_path}...")
     df = pd.read_parquet(parquet_path)
-    print(f"nb rows: {len(df.index)}")
+    
     if sample_size:
         df = df.sample(n=min(sample_size, len(df)), random_state=42)
-    print(f"Analyzing {len(df):,} rows.\n")
+    
+    print(f"Analyzing {len(df):,} positions.")
 
-    mate_mask  = df['mate'].notna()
-    cp_mask    = ~mate_mask
-    df_cp      = df[cp_mask].copy()
+    mate_mask = df['mate'].notna()
+    cp_mask = ~mate_mask
+    
+    y_cp = np.tanh(df[cp_mask]['cp'] / K)
+    # Map mates to exact -1 or 1
+    y_mate = df[mate_mask]['mate'].apply(lambda m: 1.0 if m > 0 else -1.0)
+    y_all = pd.concat([y_cp, y_mate])
 
-    # ── Normalisation ────────────────────────────────────────────────────────
-    df_cp['y'] = np.tanh(df_cp['cp'] / K)
-    y_mate     = df[mate_mask]['mate'].apply(lambda m: 1.0 if m > 0 else -1.0)
-    y_all      = pd.concat([df_cp['y'], y_mate])
-
-    # ── Matériel ─────────────────────────────────────────────────────────────
-    print("Computing material...")
-    df['material'] = df['fen'].apply(count_material)
+    if 'material' not in df.columns:
+        print("Computing material counts...")
+        df['material'] = df['fen'].apply(count_material)
 
     phase_edges = [0, 30, 60, 150]
-    phases      = ["Endgame", "Middlegame", "Opening"]
+    phases = ["Endgame", "Middlegame", "Opening"]
     df['phase'] = pd.cut(df['material'], bins=phase_edges, labels=phases)
 
-    # ── Stats ─────────────────────────────────────────────────────────────────
-    print(f"Positions cp   : {cp_mask.sum():>8,}  ({100*cp_mask.mean():.1f}%)")
-    print(f"Positions mate : {mate_mask.sum():>8,}  ({100*mate_mask.mean():.1f}%)")
-    print(f"\ncp brut  — mean: {df_cp['cp'].mean():+.1f}  std: {df_cp['cp'].std():.1f}  min: {df_cp['cp'].min():.0f}  max: {df_cp['cp'].max():.0f}")
-    print(f"y normalisé — mean: {y_all.mean():+.4f}  std: {y_all.std():.4f}")
-    print(f"\nRépartition par phase :")
-    for phase in phases:
-        count = (df['phase'] == phase).sum()
-        print(f"  {phase:<12} : {count:>8,}  ({100*count/len(df):.1f}%)")
+    plt.style.use('ggplot') 
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # ── Plots ────────────────────────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    axes[0].hist(y_all, bins=80, color='#69b3a2', edgecolor='white', alpha=0.9)
+    axes[0].set_title("Normalized Evaluation Distribution", fontsize=14, fontweight='bold', pad=15)
+    axes[0].set_xlabel(f"Target Score: $y = \\tanh(cp / {K})$", fontsize=12)
+    axes[0].set_ylabel("Number of Positions", fontsize=12)
+    axes[0].axvline(0, color='#e74c3c', linewidth=1.5, linestyle='--')
+    axes[0].grid(axis='y', alpha=0.3)
 
-    # 1. CP bruts
-    axes[0].hist(df_cp['cp'].clip(-2000, 2000), bins=100, color='steelblue', edgecolor='none')
-    axes[0].set_title("Distribution cp bruts")
-    axes[0].set_xlabel("cp (clippé entre -2000 et 2000)")
-    axes[0].set_ylabel("Nombre de positions")
-    axes[0].axvline(0, color='red', linewidth=1, linestyle='--')
+    phase_counts = [(df['phase'] == p).sum() for p in phases]
+    colors = ['#432371', '#7b4397', '#dc2430'] # Nice gradient palette
+    bars = axes[1].bar(phases, phase_counts, color=colors, edgecolor='none', alpha=0.85)
+    
+    axes[1].set_title("Game Phase Distribution", fontsize=14, fontweight='bold', pad=15)
+    # axes[1].set_ylabel("Number of Positions", fontsize=12)
+    axes[1].set_xlabel("Game Stage", fontsize=12)
+    axes[1].grid(axis='y', alpha=0.3)
 
-    # 2. Y normalisé
-    axes[1].hist(y_all, bins=100, color='darkorange', edgecolor='none')
-    axes[1].set_title(f"Distribution normalisée (K={K})")
-    axes[1].set_xlabel("y = tanh(cp / K)")
-    axes[1].set_ylabel("Nombre de positions")
-    axes[1].axvline(0, color='red', linewidth=1, linestyle='--')
-
-    # 3. Matériel
-    phase_counts = [( df['phase'] == p).sum() for p in phases]
-    bars = axes[2].bar(phases, phase_counts, color=['#2196F3', '#FF9800', '#4CAF50'], edgecolor='none')
-    axes[2].set_title("Répartition par phase de jeu")
-    axes[2].set_ylabel("Nombre de positions")
     for bar, count in zip(bars, phase_counts):
-        axes[2].text(bar.get_x() + bar.get_width() / 2,
-                     bar.get_height() + len(df) * 0.005,
-                     f"{100*count/len(df):.1f}%",
-                     ha='center', va='bottom', fontsize=11)
+        percentage = 100 * count / len(df)
+        axes[1].text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + (len(df) * 0.01),
+            f'{percentage:.1f}%',
+            ha='center', va='bottom', fontsize=11, fontweight='bold'
+        )
 
-    fig.suptitle(f"Analyse du dataset — {len(df):,} positions  |  K={K}", fontsize=13)
     plt.tight_layout()
-    plt.savefig("dataset_analysis.png", dpi=150)
+    plt.savefig(path, dpi=300, bbox_inches='tight')
+    print(f"Figure saved as '{path}' (300 DPI)")
     plt.show()
 
+def load_opening_book_fens(file_path, n=50):
+    """
+    Lit le fichier Book.txt et extrait n FENs uniques au hasard.
+    """
+    import random
+    fens = []
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                # On ne garde que les lignes qui commencent par 'pos'
+                if line.startswith('pos '):
+                    # On retire le préfixe 'pos ' pour ne garder que la FEN
+                    fen = line.replace('pos ', '').strip()
+                    fens.append(fen)
+        
+        unique_fens = list(set(fens))
+        
+        print(f"Total de positions trouvées : {len(fens)}")
+        print(f"Positions uniques : {len(unique_fens)}")
+        
+        if len(unique_fens) < n:
+            print(f"Attention : Seulement {len(unique_fens)} positions uniques disponibles.")
+            return unique_fens
+        
+        selected_fens = random.sample(unique_fens, n)
+        
+        with open(f"data/opening_book_fens_{n}.txt", "w") as f:
+            for fen in selected_fens:
+                f.write(f"{fen}\n")
+        
+
+    except FileNotFoundError:
+        print(f"Erreur : Le fichier {file_path} n'a pas été trouvé.")
+        return []
+
+
 if __name__ == "__main__":
-    # balance_dataset_from_parquet(
-    #     input_path="data/kaggle.parquet",
-    #     total_rows=100_000, 
-    #     n_bins=50, 
-    #     K=300.0, 
-    #     filename="kaggle_100k_300"
+    # get_fighting_fens(
+    #     parquet_path="data/kaggle_100k_300.parquet",
+    #     n=50,
+    #     output_path="data/fighting_fens_2.txt"
     # )
-    analyze_dataset("data/kaggle_100k_300.parquet", K=300.0, sample_size=100_000)
+    generate_poster_dataset_plots(
+        parquet_path="data/kaggle_5M_300.parquet",
+        K=300.0,
+        path="fig/poster_dataset_distribution.png",
+        sample_size=None,
+    )

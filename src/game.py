@@ -1,4 +1,5 @@
 import chess
+import chess.engine
 import torch
 import tkinter as tk
 import threading
@@ -7,6 +8,7 @@ from PIL import Image, ImageTk
 
 from CNN import ChessCNN
 from minimax import get_best_move
+from ONNX import ONNXModelWrapper
 
 # ── Couleurs ─────────────────────────────────────────────────────────────────
 LIGHT   = "#F0D9B5"
@@ -15,6 +17,46 @@ SELECT  = "#7FC97F"
 LEGAL   = "#7EC8E3"
 
 SQUARE_SIZE = 80
+
+# ── Stockfish wrapper ────────────────────────────────────────────────────────
+
+class StockfishPlayer:
+    """
+    Wraps Stockfish so it can be used in place of an ONNX model inside ChessGame.
+    Bypasses minimax entirely.
+    """
+    def __init__(self, stockfish_path: str, elo: int = None, time_limit: float = 0.1, depth: int = None):
+        self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+        if elo is not None:
+            self.engine.configure({
+                "UCI_LimitStrength": True,
+                "UCI_Elo": max(1320, elo),
+            })
+        else:
+            self.engine.configure({
+                "Skill Level": 0,
+            })
+        self.time_limit = time_limit
+        self.depth = depth
+
+    def get_move(self, board: chess.Board):
+        """Returns (move, score). Score normalised to [-1, 1] from white's perspective."""
+        result = self.engine.play(
+            board, 
+            chess.engine.Limit(time=self.time_limit, depth=self.depth),
+            info=chess.engine.Info.SCORE
+            )
+        try:
+            # info  = self.engine.analyse(board, chess.engine.Limit(time=0.05))
+            # cp    = info["score"].white().score(mate_score=10000)
+            cp = result.info["score"].white().score(mate_score=10000)
+            score = max(-1.0, min(1.0, cp / 10000.0))
+        except Exception:
+            score = 0.0
+        return result.move, score
+
+    def close(self):
+        self.engine.quit()
 
 
 def load_model(model_path, conv_filters, fc_layers, device):
@@ -35,55 +77,63 @@ def load_model(model_path, conv_filters, fc_layers, device):
 
 
 class ChessGame:
-    def __init__(self, root,
-                 white_model=None, black_model=None,
-                 white_depth=3, black_depth=3,
-                 device=None,
-                 delay_ms=500):
+    def __init__(self, root=None,
+             white_model=None, black_model=None,
+             white_depth=3, black_depth=3,
+             device=None,
+             delay_ms=500,
+             headless=False,
+             starting_fen=None):
 
         self.root        = root
-        self.board       = chess.Board()
+        self.board       = chess.Board(starting_fen) if starting_fen else chess.Board()
         self.white_model = white_model
         self.black_model = black_model
         self.white_depth = white_depth
         self.black_depth = black_depth
         self.device      = device or torch.device("cpu")
         self.delay_ms    = delay_ms
+        self.headless    = headless
         self.selected_square = None
         self.legal_targets   = []
         self.game_over       = False
-        self.tt               = {}  # Transposition table
+        self.tt              = {}
+        self.result          = None
+        self.move_history    = []
 
-        # ── UI ───────────────────────────────────────────────────────────────
-        self.root.title("DeepChess")
-        self.root.resizable(False, False)
+        if self.headless:
+            pass
+        else:
+            assert root is not None, "root (tk.Tk()) est requis en mode non-headless"
+            self.root.title("DeepChess")
+            self.root.resizable(False, False)
 
-        size = SQUARE_SIZE * 8
-        self.canvas = tk.Canvas(root, width=size, height=size)
-        self.canvas.pack()
-        self.canvas.bind("<Button-1>", self.on_click)
+            size = SQUARE_SIZE * 8
+            self.canvas = tk.Canvas(root, width=size, height=size)
+            self.canvas.pack()
+            self.canvas.bind("<Button-1>", self.on_click)
 
-        self.piece_images = self.load_piece_images("assets/pieces", SQUARE_SIZE)
+            self.piece_images = self.load_piece_images("assets/pieces", SQUARE_SIZE)
 
-        self.status_var = tk.StringVar(value="Game started !")
-        tk.Label(root, textvariable=self.status_var,
-                 font=("Helvetica", 13)).pack(pady=4)
+            self.status_var = tk.StringVar(value="Game started !")
+            tk.Label(root, textvariable=self.status_var,
+                    font=("Helvetica", 13)).pack(pady=4)
 
-        self.info_var = tk.StringVar(value="")
-        tk.Label(root, textvariable=self.info_var,
-                 font=("Helvetica", 11), fg="gray").pack()
+            self.info_var = tk.StringVar(value="")
+            tk.Label(root, textvariable=self.info_var,
+                    font=("Helvetica", 11), fg="gray").pack()
 
-        self.time_var = tk.StringVar(value="")
-        tk.Label(root, textvariable=self.time_var,
-                font=("Helvetica", 11), fg="gray").pack()
+            self.time_var = tk.StringVar(value="")
+            tk.Label(root, textvariable=self.time_var,
+                    font=("Helvetica", 11), fg="gray").pack()
 
-        btn = tk.Frame(root)
-        btn.pack(pady=5)
-        tk.Button(btn, text="Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn, text="Quit",    command=root.quit).pack(side=tk.LEFT, padx=5)
+            btn = tk.Frame(root)
+            btn.pack(pady=5)
+            tk.Button(btn, text="Restart", command=self.restart).pack(side=tk.LEFT, padx=5)
+            tk.Button(btn, text="Quit",    command=root.quit).pack(side=tk.LEFT, padx=5)
 
-        self.render_board()
-        self.root.after(self.delay_ms, self.game_loop)
+            self.render_board()
+            self.root.after(self.delay_ms, self.game_loop)
 
     # ── Rendering ────────────────────────────────────────────────────────────
 
@@ -172,60 +222,129 @@ class ChessGame:
     def current_depth(self):
         return self.white_depth if self.board.turn == chess.WHITE else self.black_depth
 
+    def get_dynamic_depth(self):
+        base_depth = self.current_depth()
+        if self.get_material_count() < 20:
+            return base_depth + 1
+        return base_depth
+
+    def get_material_count(self):
+        values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+        return sum(len(self.board.pieces(pt, chess.WHITE)) + len(self.board.pieces(pt, chess.BLACK)) for pt in values) 
+
     def is_human_turn(self):
         return self.current_model() is None
 
     def game_loop(self):
         if self.game_over:
             return
-        if self.is_human_turn():
-            player = "White" if self.board.turn == chess.WHITE else "Black"
-            self.status_var.set(f"Your turn ({player}) — click a piece")
+        if self.headless:
+            # En headless : boucle synchrone jusqu'à la fin
+            while not self.game_over:
+                if self.is_human_turn():
+                    break  # impossible en headless sans input
+                self.ai_move_headless()
         else:
-            self.status_var.set("AI is thinking...")
-            self.root.update()
-            threading.Thread(target=self.ai_move, daemon=True).start()
+            if self.is_human_turn():
+                player = "White" if self.board.turn == chess.WHITE else "Black"
+                self.status_var.set(f"Your turn ({player}) — click a piece")
+            else:
+                self.status_var.set("AI is thinking...")
+                self.root.update()
+                threading.Thread(target=self.ai_move, daemon=True).start()
+
+    def ai_move_headless(self):
+        """Synchronous AI move for headless mode."""
+        start = time.time()
+        current_depth = self.get_dynamic_depth()
+
+        current = self.current_model()
+        if isinstance(current, StockfishPlayer):
+            move, score = current.get_move(self.board)
+        else:
+            move, score = get_best_move(
+                self.board.fen(), current,
+                self.device, depth=self.current_depth(),
+                tt=self.tt
+            )
+        
+        elapsed = time.time() - start
+        self.move_history.append({
+            'move':    move.uci() if move else None,
+            'score':   score,
+            'elapsed': elapsed,
+            'player':  'white' if self.board.turn == chess.WHITE else 'black'
+        })
+        self.apply_move(move, score)
 
     def ai_move(self):
         start = time.time()
-        move, score = get_best_move(
-            self.board.fen(), self.current_model(),
-            self.device, depth=self.current_depth(),
-            tt=self.tt
-        )
+        current_depth = self.get_dynamic_depth()
+        current = self.current_model()
+        if isinstance(current, StockfishPlayer):
+            move, score = current.get_move(self.board)
+        else:
+            move, score = get_best_move(
+                self.board.fen(), current,
+                self.device, depth=self.current_depth(),
+                tt=self.tt
+            )
         elapsed = time.time() - start
         self.root.after(0, lambda: self.apply_move(move, score, elapsed))
 
     def apply_move(self, move, score=None, elapsed=None):
         if move is None or move not in self.board.legal_moves:
-            self.status_var.set("Illegal move.")
+            if not self.headless:
+                self.status_var.set("Illegal move.")
             return
         self.board.push(move)
-        score_str = f"{score:+.4f}" if score is not None else ""
-        elapsed_str = f"{elapsed:.2f}s" if elapsed is not None else ""
-        self.info_var.set(f"Last move: {move.uci()}  |  score: {score_str}")
-        self.time_var.set(f"AI thinking time: {elapsed_str}")
-        self.selected_square = None
-        self.legal_targets   = []
-        self.render_board()
+
+        if not self.headless:
+            score_str   = f"{score:+.4f}" if score is not None else ""
+            elapsed_str = f"{elapsed:.2f}s" if elapsed is not None else ""
+            self.info_var.set(f"Last move: {move.uci()}  |  score: {score_str}")
+            self.time_var.set(f"AI thinking time: {elapsed_str}")
+            self.selected_square = None
+            self.legal_targets   = []
+            self.render_board()
+
         self.check_game_over()
-        if not self.game_over:
+
+        if not self.game_over and not self.headless:
             self.root.after(self.delay_ms, self.game_loop)
 
     def check_game_over(self):
         if self.board.is_checkmate():
-            winner = "Black" if self.board.turn == chess.WHITE else "White"
-            self.status_var.set(f"Checkmate ! {winner} wins !")
+            self.result    = "black" if self.board.turn == chess.WHITE else "white"
             self.game_over = True
+            reason         = "Checkmate"
         elif self.board.is_stalemate():
-            self.status_var.set("Stalemate ! Draw.")
+            self.result    = "draw"
             self.game_over = True
+            reason         = "Stalemate"
         elif self.board.is_insufficient_material():
-            self.status_var.set("Insufficient material. Draw.")
+            self.result    = "draw"
             self.game_over = True
+            reason         = "Insufficient material"
         elif self.board.can_claim_draw():
-            self.status_var.set("Draw claimed.")
+            # 1. SET THE RESULT (This was missing!)
+            self.result = "draw" 
+            
+            # Determine precise reason for logs/UI
+            if self.board.can_claim_threefold_repetition():
+                reason = "Draw claimed: Threefold repetition"
+            elif self.board.can_claim_fifty_moves():
+                reason = "Draw claimed: Fifty-move rule"
+            else:
+                reason = "Draw claimed"
+
+            if not self.headless:
+                self.status_var.set(reason)
+            
+                
             self.game_over = True
+        else:
+            return  # Game continues
 
     # ── Human click ──────────────────────────────────────────────────────────
 
@@ -272,26 +391,73 @@ class ChessGame:
         self.root.after(self.delay_ms, self.game_loop)
         self.tt = {}
 
+    def play_headless(self, max_moves=200):
+        """
+        Runs the game synchronously to completion.
+        Returns result dict.
+        """
+        assert self.headless, "Use game_loop() for non-headless mode."
+        for _ in range(max_moves):
+            if self.game_over:
+                break
+            self.ai_move_headless()
+        if not self.game_over:
+            self.result = "draw"  # partie trop longue → nulle par défaut
+        return {
+            'result':       self.result,
+            'n_moves':      len(self.move_history),
+            'move_history': self.move_history,
+        }
+
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    print(".PTH")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     MODEL_PATH   = "models/CNN_5M_5.pth"
     CONV_FILTERS = [64, 128, 256]
     FC_LAYERS    = [512, 256, 128]
 
-    model = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
+    model_sym = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
+
+    MODEL_PATH  = "models/CNN_ASYM_3.pth"
+    model_asym = load_model(MODEL_PATH, CONV_FILTERS, FC_LAYERS, device)
 
     root = tk.Tk()
     ChessGame(
         root,
-        white_model=None,   # None = humain
-        black_model=model,
+        white_model=model_asym,   # None = humain
+        black_model=model_sym,
         white_depth=3,
         black_depth=3,
         device=device,
         delay_ms=500,
+        starting_fen=None
     )
     root.mainloop()
+
+# if __name__ == "__main__":
+#     print(".ONNX")
+#     device = torch.device("cpu")
+
+#     MODEL_PATH_SYM  = "models/CNN_SYM.onnx"
+#     MODEL_PATH_ASYM = "models/CNN_ASYM.onnx"
+
+#     # Chargement via le Wrapper
+#     model_sym  = ONNXModelWrapper(MODEL_PATH_SYM)
+#     model_asym = ONNXModelWrapper(MODEL_PATH_ASYM)
+
+#     root = tk.Tk()
+#     ChessGame(
+#         root,
+#         white_model=model_asym,      # Humain
+#         black_model=model_sym, # Ton modèle ONNX
+#         white_depth=3,
+#         black_depth=3,
+#         device=device,         # On garde l'argument pour la forme
+#         delay_ms=500,
+#         starting_fen=None
+#     )
+#     root.mainloop()
